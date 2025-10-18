@@ -2,7 +2,7 @@
 
 <?php
   // ---- Server data you could fetch from DB ----
-  $movieTitle   = $_GET['movie']  ?? 'The Midnight Heist';
+  $movieTitle   = $_GET['movie']  ?? 'Oppenheimer';
   $showDate     = $_GET['date']   ?? date('Y-m-d');
   $pricePerSeat = 12.50;
 
@@ -20,9 +20,13 @@
       <div>
         <label class="block text-sm font-medium mb-1">Movie</label>
         <select name="movie" class="w-full rounded-md border px-3 py-2">
-          <option <?= $movieTitle==='The Midnight Heist'?'selected':''; ?>>The Midnight Heist</option>
-          <option <?= $movieTitle==='Star Wars 3'?'selected':''; ?>>Star Wars 3</option>
-          <option <?= $movieTitle==='Laugh Out Loud'?'selected':''; ?>>Laugh Out Loud</option>
+          <option <?= $movieTitle==='Oppenheimer'?'selected':''; ?>>Oppenheimer</option>
+          <option <?= $movieTitle==='The Dark Knight'?'selected':''; ?>>The Dark Knight</option>
+          <option <?= $movieTitle==='Joker'?'selected':''; ?>>Joker</option>
+          <option <?= $movieTitle==='The Godfather'?'selected':''; ?>>The Godfather</option>
+          <option <?= $movieTitle==='Pulp Fiction'?'selected':''; ?>>Pulp Fiction</option>
+          <option <?= $movieTitle==='Alien'?'selected':''; ?>>Alien</option>
+          <option <?= $movieTitle==='Free Guy'?'selected':''; ?>>Free Guy</option>
         </select>
       </div>
       <div>
