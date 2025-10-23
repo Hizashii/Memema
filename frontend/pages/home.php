@@ -23,26 +23,26 @@ $news = [
 
 $shows = [
   [
-    'title' => 'Star Wars 3',
-    'img' => './assets/img/warsStar.jpg',
-    'tag' => ['Fiction','bg-emerald-600/90'],
+    'title' => 'Oppenheimer',
+    'img' => './assets/img/Oppenheimer.jpg',
+    'tag' => ['Drama','bg-cyan-600/90'],
     'times' => ['10:00 AM','01:30 PM','04:00 PM'],
   ],
   [
-    'title' => 'Whispers of the Past',
-    'img' => './assets/img/warsStar.jpg',
-    'tag' => ['Mystery','bg-cyan-600/90'],
+    'title' => 'The Dark Knight',
+    'img' => './assets/img/TheDarkKnight.jpg',
+    'tag' => ['Action','bg-emerald-600/90'],
     'times' => ['11:00 AM','02:15 PM','05:00 PM'],
   ],
   [
-    'title' => 'Laugh Out Loud',
-    'img' => './assets/img/warsStar.jpg',
+    'title' => 'Free Guy',
+    'img' => './assets/img/FreeGuy.jpg',
     'tag' => ['Comedy','bg-emerald-600/90'],
     'times' => ['10:30 AM','01:00 PM','03:45 PM'],
   ],
   [
-    'title' => 'Heartbreak Harmony',
-    'img' => './assets/img/warsStar.jpg',
+    'title' => 'Joker',
+    'img' => './assets/img/Joker.png',
     'tag' => ['Drama','bg-teal-600/90'],
     'times' => ['12:00 PM','02:45 PM','05:30 PM'],
   ],
