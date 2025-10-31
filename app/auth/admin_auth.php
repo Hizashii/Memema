@@ -7,7 +7,7 @@ define('CINEMA_ADMIN', true);
 
 $admin_credentials = [
     'username' => 'admin',
-    'password' => 'admin123', // Change this in production!
+    'password' => 'admin123',
     'email' => 'admin@cinemabook.com'
 ];
 
@@ -18,7 +18,6 @@ function isAdminLoggedIn() {
 function adminLogin($username, $password) {
     global $admin_credentials;
     
-    // In production, store hashed passwords in database
     if ($username === $admin_credentials['username'] && 
         $password === $admin_credentials['password']) {
         $_SESSION['admin_logged_in'] = true;

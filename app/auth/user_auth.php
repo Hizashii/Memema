@@ -1,9 +1,4 @@
 <?php
-/**
- * User Authentication System
- */
-
-// Start session
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
@@ -11,16 +6,10 @@ if (session_status() === PHP_SESSION_NONE) {
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../core/database.php';
 
-/**
- * Check if user is logged in
- */
 function isUserLoggedIn() {
     return isset($_SESSION['user_logged_in']) && $_SESSION['user_logged_in'] === true;
 }
 
-/**
- * Login user
- */
 function userLogin($email, $password) {
     try {
         $users = executeQuery("SELECT id, full_name, email, password, phone FROM users WHERE email = ?", [$email]);
@@ -46,22 +35,16 @@ function userLogin($email, $password) {
     }
 }
 
-/**
- * Register user
- */
 function userRegister($fullName, $email, $password, $phone = null) {
     try {
-        // Check if user already exists
         $existingUsers = executeQuery("SELECT id FROM users WHERE email = ?", [$email]);
         
         if (!empty($existingUsers)) {
             return ['success' => false, 'error' => 'Email already registered'];
         }
         
-        // Hash password
         $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
         
-        // Insert new user
         $result = executeQuery(
             "INSERT INTO users (full_name, email, password, phone) VALUES (?, ?, ?, ?)",
             [$fullName, $email, $hashedPassword, $phone]
@@ -77,24 +60,16 @@ function userRegister($fullName, $email, $password, $phone = null) {
     }
 }
 
-/**
- * Logout user
- */
 function userLogout() {
     session_destroy();
-    // Determine the correct path based on where logout.php is called from
     $isInPages = strpos($_SERVER['REQUEST_URI'], '/pages/') !== false;
     $redirectPath = $isInPages ? '../index.php' : 'index.php';
     header('Location: ' . $redirectPath);
     exit;
 }
 
-/**
- * Require user login
- */
 function requireUserLogin() {
     if (!isUserLoggedIn()) {
-        // Determine the correct path based on where this function is called from
         $isInPages = strpos($_SERVER['REQUEST_URI'], '/pages/') !== false;
         $loginPath = $isInPages ? 'login.php' : 'pages/login.php';
         header('Location: ' . $loginPath);
@@ -102,9 +77,6 @@ function requireUserLogin() {
     }
 }
 
-/**
- * Get current user info
- */
 function getCurrentUser() {
     if (isUserLoggedIn()) {
         return [
@@ -117,9 +89,6 @@ function getCurrentUser() {
     return null;
 }
 
-/**
- * Get user booking history
- */
 function getUserBookings($userId, $limit = 10) {
     try {
         return executeQuery(
