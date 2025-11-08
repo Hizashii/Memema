@@ -1,22 +1,18 @@
 <?php
 define('CINEMA_APP', true);
 
-define('DB_HOST', 'localhost');
-define('DB_USER', 'root');
-define('DB_PASS', '');
-define('DB_NAME', 'cinema_booking');
+define('DB_HOST', 'sql108.infinityfree.com');
+define('DB_USER', 'if0_40366111');
+define('DB_PASS', 'iSaulkMzylk'); 
+define('DB_NAME', 'if0_40366111_Cinema');
 
 function getDBConnection() {
   static $connection = null;
-  
   if ($connection === null) {
+    mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT); 
     $connection = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
-    if ($connection->connect_error) {
-      throw new Exception("Database connection failed: " . $connection->connect_error);
-    }
-    $connection->set_charset("utf8mb4");
+    $connection->set_charset('utf8mb4');
   }
-  
   return $connection;
 }
 

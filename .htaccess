@@ -1,15 +1,7 @@
 RewriteEngine On
-
-# Set base for subdirectory deployment (adjust if your folder name changes)
-RewriteBase /Cinema/
-
-# Allow direct access to assets
-RewriteCond %{REQUEST_URI} \.(?:css|js|png|jpg|jpeg|gif|svg|ico|webp|woff2?)$ [NC]
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
 RewriteRule ^ - [L]
-
-# Route everything else to routes.php
-RewriteCond %{REQUEST_FILENAME} !-f
-RewriteCond %{REQUEST_FILENAME} !-d
-RewriteRule ^ routes.php [L]
-
-
+RewriteRule ^admin/ - [L]
+RewriteRule ^(assets|uploads)/ - [L]
+RewriteRule ^ index.php [QSA,L]

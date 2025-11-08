@@ -5,11 +5,7 @@ if (session_status() === PHP_SESSION_NONE) {
 
 define('CINEMA_ADMIN', true);
 
-$admin_credentials = [
-    'username' => 'admin',
-    'password' => 'admin123',
-    'email' => 'admin@cinemabook.com'
-];
+$admin_credentials = require __DIR__ . '/../config/admin_credentials.php';
 
 function isAdminLoggedIn() {
     return isset($_SESSION['admin_logged_in']) && $_SESSION['admin_logged_in'] === true;
@@ -35,6 +31,10 @@ function adminLogout() {
 }
 
 function requireAdminLogin() {
+    if (!isAdminLoggedIn()) {
+        header('Location: /Cinema/admin/login.php');
+        exit;
+    }
 }
 
 function getAdminInfo() {
