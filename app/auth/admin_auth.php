@@ -26,13 +26,17 @@ function adminLogin($username, $password) {
 
 function adminLogout() {
     session_destroy();
-    header('Location: /Cinema/admin/login.php');
+    require_once __DIR__ . '/../core/database.php';
+    $base = getBasePath();
+    header('Location: ' . $base . '/admin/login.php');
     exit;
 }
 
 function requireAdminLogin() {
     if (!isAdminLoggedIn()) {
-        header('Location: /Cinema/admin/login.php');
+        require_once __DIR__ . '/../core/database.php';
+        $base = getBasePath();
+        header('Location: ' . $base . '/admin/login.php');
         exit;
     }
 }

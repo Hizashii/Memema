@@ -12,14 +12,16 @@ $PARTIALS_DIR = __DIR__ . '/partials';
 $reqPath = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 $scriptPath = dirname($_SERVER['SCRIPT_NAME']);
 
-if (strpos($reqPath, $scriptPath) === 0) {
-    $route = trim(substr($reqPath, strlen($scriptPath)), '/');
-} else {
-    $route = trim($reqPath, '/');
-}
+$route = trim($reqPath, '/');
 
 if (strpos($route, 'public/frontend/') === 0) {
     $route = substr($route, strlen('public/frontend/'));
+} elseif (strpos($reqPath, $scriptPath) === 0 && $scriptPath !== '/' && $scriptPath !== '.') {
+    $route = trim(substr($reqPath, strlen($scriptPath)), '/');
+}
+
+if (empty($route) || $route === 'index.php') {
+    $route = '';
 }
 
 $routes = [

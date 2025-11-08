@@ -1,5 +1,6 @@
 <?php
 $routes = require_once __DIR__ . '/../config/routes.php';
+require_once __DIR__ . '/database.php';
 
 function route($routeName, $params = []) {
     global $routes;
@@ -9,6 +10,15 @@ function route($routeName, $params = []) {
     }
     
     $url = $routes[$routeName];
+    $base = getBasePath();
+    
+    if (preg_match('#^/(Cinema|cinema)/#i', $url)) {
+        if ($base) {
+            $url = preg_replace('#^/(Cinema|cinema)#i', $base, $url);
+        } else {
+            $url = preg_replace('#^/(Cinema|cinema)/#i', '/', $url);
+        }
+    }
     
     if (!empty($params)) {
         $url .= '?' . http_build_query($params);

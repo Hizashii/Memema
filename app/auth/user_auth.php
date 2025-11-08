@@ -69,17 +69,15 @@ function userRegister($fullName, $email, $password, $phone = null) {
 
 function userLogout() {
     session_destroy();
-    $isInPages = strpos($_SERVER['REQUEST_URI'], '/pages/') !== false;
-    $redirectPath = $isInPages ? '../index.php' : 'index.php';
-    header('Location: ' . $redirectPath);
-    exit;
+    require_once __DIR__ . '/../core/router.php';
+    redirect('public.home');
 }
 
 function requireUserLogin() {
     if (!isUserLoggedIn()) {
-        $isInPages = strpos($_SERVER['REQUEST_URI'], '/pages/') !== false;
-        $loginPath = $isInPages ? 'login.php' : 'pages/login.php';
-        header('Location: ' . $loginPath);
+        require_once __DIR__ . '/../core/database.php';
+        $base = getBasePath();
+        header('Location: ' . $base . '/public/frontend/pages/login.php');
         exit;
     }
 }

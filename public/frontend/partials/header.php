@@ -6,9 +6,16 @@ if (session_status() === PHP_SESSION_NONE) {
 require_once __DIR__ . '/../../../app/auth/user_auth.php';
 
 $currentPath = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) ?? '/';
-$base = '/Cinema/public/frontend';
-if (strpos($currentPath, $base) === 0) {
-  $currentPath = substr($currentPath, strlen($base)) ?: '/';
+$scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
+$scriptDir = dirname($scriptName);
+
+$currentPathLower = strtolower($currentPath);
+if (preg_match('#^/(cinema|Cinema)/public/frontend#i', $currentPath)) {
+  $currentPath = preg_replace('#^/([^/]+)/public/frontend#i', '', $currentPath) ?: '/';
+} elseif (preg_match('#^/public/frontend#i', $currentPath)) {
+  $currentPath = preg_replace('#^/public/frontend#i', '', $currentPath) ?: '/';
+} elseif ($scriptDir !== '/' && $scriptDir !== '.' && strpos($currentPath, $scriptDir) === 0) {
+  $currentPath = substr($currentPath, strlen($scriptDir)) ?: '/';
 }
 
 $isInPages = strpos($currentPath, '/pages/') !== false || strpos($_SERVER['REQUEST_URI'], '/pages/') !== false;
@@ -51,7 +58,7 @@ $user = getCurrentUser();
 
 <header class="border-b border-purple-200 px-6 py-3">
   <div class="max-w-7xl mx-auto flex items-center justify-between">
-    <a href="/" class="text-purple-700 font-bold text-xl flex items-center space-x-2">
+    <a href="<?= $basePath ?>index.php" class="text-purple-700 font-bold text-xl flex items-center space-x-2">
       <i class="fas fa-film"></i>
       <span>CinemaBook</span>
     </a>

@@ -4,7 +4,9 @@
 require_once __DIR__ . '/../../../app/auth/user_auth.php';
 
 if (isUserLoggedIn()) {
-    header('Location: profile.php');
+    require_once __DIR__ . '/../../../app/core/database.php';
+    $base = getBasePath();
+    header('Location: ' . $base . '/public/frontend/pages/profile.php');
     exit;
 }
 
@@ -30,7 +32,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $success = $result['message'];
             $loginResult = userLogin($email, $password);
             if ($loginResult['success']) {
-                header('Location: profile.php');
+                require_once __DIR__ . '/../../../app/core/database.php';
+                $base = getBasePath();
+                header('Location: ' . $base . '/public/frontend/pages/profile.php');
                 exit;
             }
         } else {

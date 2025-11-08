@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../app/auth/admin_auth.php';
 require_once __DIR__ . '/../app/config/security.php';
+require_once __DIR__ . '/../app/core/database.php';
 
 if (!isAdminLoggedIn()) {
     header('Content-Type: application/json');
@@ -44,7 +45,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['image'])) {
         $filePath = $uploadDir . $newFileName;
         
         if (move_uploaded_file($fileTmpName, $filePath)) {
-            $imageUrl = '/Cinema/assets/img/' . $newFileName;
+            $base = getBasePath();
+            $imageUrl = $base . '/assets/img/' . $newFileName;
             $message = json_encode(['success' => true, 'path' => $imageUrl, 'filename' => $newFileName]);
         } else {
             throw new Exception('Failed to move uploaded file.');
