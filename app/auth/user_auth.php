@@ -12,7 +12,7 @@ function isUserLoggedIn() {
 
 function userLogin($email, $password) {
     try {
-        $users = executeQuery("SELECT id, full_name, email, password, phone FROM users WHERE email = ?", [$email]);
+        $users = executePreparedQuery("SELECT id, full_name, email, password, phone FROM users WHERE email = ?", [$email], 's');
         
         if (empty($users)) {
             return ['success' => false, 'error' => 'Invalid email or password'];
@@ -37,7 +37,7 @@ function userLogin($email, $password) {
 
 function userRegister($fullName, $email, $password, $phone = null) {
     try {
-        $existingUsers = executeQuery("SELECT id FROM users WHERE email = ?", [$email]);
+        $existingUsers = executePreparedQuery("SELECT id FROM users WHERE email = ?", [$email], 's');
         
         if (!empty($existingUsers)) {
             return ['success' => false, 'error' => 'Email already registered'];
@@ -45,15 +45,22 @@ function userRegister($fullName, $email, $password, $phone = null) {
         
         $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
         
-        $result = executeQuery(
-            "INSERT INTO users (full_name, email, password, phone) VALUES (?, ?, ?, ?)",
-            [$fullName, $email, $hashedPassword, $phone]
-        );
+        $conn = getDBConnection();
+        $stmt = $conn->prepare("INSERT INTO users (full_name, email, password, phone) VALUES (?, ?, ?, ?)");
         
-        if ($result) {
+        if (!$stmt) {
+            throw new Exception("Prepare failed: " . $conn->error);
+        }
+        
+        $stmt->bind_param('ssss', $fullName, $email, $hashedPassword, $phone);
+        
+        if ($stmt->execute()) {
+            $stmt->close();
             return ['success' => true, 'message' => 'Registration successful'];
         } else {
-            return ['success' => false, 'error' => 'Registration failed'];
+            $error = $stmt->error;
+            $stmt->close();
+            return ['success' => false, 'error' => 'Registration failed: ' . $error];
         }
     } catch (Exception $e) {
         return ['success' => false, 'error' => 'Registration failed. Please try again.'];
@@ -91,7 +98,7 @@ function getCurrentUser() {
 
 function getUserBookings($userId, $limit = 10) {
     try {
-        return executeQuery(
+        return executePreparedQuery(
             "SELECT b.id, b.show_date, b.show_time, b.seats_count, b.total_price, b.created_at,
                     m.title as movie_title, m.img as movie_img,
                     v.name as venue_name, s.screen_name, s.screen_type
@@ -102,7 +109,8 @@ function getUserBookings($userId, $limit = 10) {
              WHERE b.user_id = ?
              ORDER BY b.created_at DESC
              LIMIT ?",
-            [$userId, $limit]
+            [$userId, $limit],
+            'ii'
         );
     } catch (Exception $e) {
         return [];

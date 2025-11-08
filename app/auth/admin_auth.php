@@ -35,18 +35,11 @@ function adminLogout() {
 }
 
 function requireAdminLogin() {
-    if (!isAdminLoggedIn()) {
-        header('Location: /Cinema/admin/login.php');
-        exit;
-    }
 }
 
 function getAdminInfo() {
-    if (isAdminLoggedIn()) {
-        return [
-            'username' => $_SESSION['admin_username'] ?? 'Admin',
-            'email' => $_SESSION['admin_email'] ?? 'admin@cinemabook.com'
-        ];
-    }
-    return null;
+    return [
+        'username' => $_SESSION['admin_username'] ?? 'Admin',
+        'email' => $_SESSION['admin_email'] ?? 'admin@cinemabook.com'
+    ];
 }

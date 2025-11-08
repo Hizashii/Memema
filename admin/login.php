@@ -1,9 +1,9 @@
 <?php
 require_once __DIR__ . '/../app/auth/admin_auth.php';
+require_once __DIR__ . '/../app/core/router.php';
 
 if (isAdminLoggedIn()) {
-    header('Location: /Cinema/admin/');
-    exit;
+    redirect('admin.dashboard');
 }
 
 $error = '';
@@ -16,8 +16,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = 'Please enter both username and password.';
     } else {
         if (adminLogin($username, $password)) {
-            header('Location: /Cinema/admin/');
-            exit;
+            redirect('admin.dashboard');
         } else {
             $error = 'Invalid username or password.';
         }
@@ -97,7 +96,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
             
             <div class="text-center">
-                <a href="/Cinema/public/frontend/" class="text-sm text-purple-600 hover:text-purple-500">
+                <a href="<?= route('public.home') ?>" class="text-sm text-purple-600 hover:text-purple-500">
                     <i class="fas fa-arrow-left mr-1"></i>
                     Back to Website
                 </a>

@@ -2,13 +2,13 @@
 require_once __DIR__ . '/../app/auth/admin_auth.php';
 require_once __DIR__ . '/../app/config/database.php';
 require_once __DIR__ . '/../app/core/database.php';
+require_once __DIR__ . '/../app/core/router.php';
 
 requireAdminLogin();
 
 $message = '';
 $error = '';
 
-// Handle form submissions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
     
@@ -20,7 +20,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new Exception('Invalid booking ID.');
             }
             
-            // Delete booking (cascades to seat reservations)
             executePreparedQuery("DELETE FROM bookings WHERE id = ?", [$id], 'i');
             
             $message = 'Booking deleted successfully!';
@@ -30,12 +29,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Get filter parameters
 $filter_movie = $_GET['movie'] ?? '';
 $filter_venue = $_GET['venue'] ?? '';
 $filter_date = $_GET['date'] ?? '';
 
-// Build query with filters
 $where_conditions = [];
 $params = [];
 $types = '';
@@ -60,7 +57,6 @@ if (!empty($filter_date)) {
 
 $where_clause = !empty($where_conditions) ? 'WHERE ' . implode(' AND ', $where_conditions) : '';
 
-// Get bookings with filters
 try {
     $bookings = executePreparedQuery("
         SELECT b.*, m.title as movie_title, v.name as venue_name, s.screen_name,
@@ -74,7 +70,6 @@ try {
         ORDER BY b.created_at DESC
     ", $params, $types);
     
-    // Get statistics
     $stats = [
         'total_bookings' => executeQuery("SELECT COUNT(*) as count FROM bookings")[0]['count'],
         'total_revenue' => executeQuery("SELECT SUM(total_price) as total FROM bookings")[0]['total'] ?? 0,
@@ -82,7 +77,6 @@ try {
         'today_revenue' => executeQuery("SELECT SUM(total_price) as total FROM bookings WHERE DATE(created_at) = CURDATE()")[0]['total'] ?? 0
     ];
     
-    // Get recent bookings for chart data
     $recent_bookings = executeQuery("
         SELECT DATE(created_at) as date, COUNT(*) as count, SUM(total_price) as revenue
         FROM bookings 
@@ -123,7 +117,7 @@ $admin = getAdminInfo();
                 </div>
                 <div class="flex items-center space-x-4">
                     <span class="text-gray-700">Welcome, <?= htmlspecialchars($admin['username']) ?></span>
-                    <a href="/Cinema/admin/logout.php" 
+                    <a href="<?= route('admin.logout') ?>" 
                        class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm">
                         <i class="fas fa-sign-out-alt mr-1"></i>
                         Logout
@@ -138,37 +132,37 @@ $admin = getAdminInfo();
         <div class="w-64 bg-white shadow-sm min-h-screen">
             <div class="p-4">
                 <nav class="space-y-2">
-                    <a href="/Cinema/admin/" 
+                    <a href="<?= route('admin.dashboard') ?>" 
                        class="flex items-center px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-md">
                         <i class="fas fa-tachometer-alt mr-3"></i>
                         Dashboard
                     </a>
-                    <a href="/Cinema/admin/movies.php" 
+                    <a href="<?= route('admin.movies') ?>" 
                        class="flex items-center px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-md">
                         <i class="fas fa-film mr-3"></i>
                         Movies
                     </a>
-                    <a href="/Cinema/admin/news.php" 
+                    <a href="<?= route('admin.news') ?>" 
                        class="flex items-center px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-md">
                         <i class="fas fa-newspaper mr-3"></i>
                         News
                     </a>
-                    <a href="/Cinema/admin/venues.php" 
+                    <a href="<?= route('admin.venues') ?>" 
                        class="flex items-center px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-md">
                         <i class="fas fa-building mr-3"></i>
                         Venues
                     </a>
-                    <a href="/Cinema/admin/bookings.php" 
+                    <a href="<?= route('admin.bookings') ?>" 
                        class="flex items-center px-4 py-2 text-sm font-medium text-white bg-purple-700 rounded-md">
                         <i class="fas fa-ticket-alt mr-3"></i>
                         Bookings
                     </a>
-                    <a href="/Cinema/admin/users.php" 
+                    <a href="<?= route('admin.users') ?>" 
                        class="flex items-center px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-md">
                         <i class="fas fa-users mr-3"></i>
                         Users
                     </a>
-                    <a href="/Cinema/public/frontend/" 
+                    <a href="<?= route('public.home') ?>" 
                        class="flex items-center px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-md">
                         <i class="fas fa-external-link-alt mr-3"></i>
                         View Website

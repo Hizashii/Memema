@@ -1,7 +1,6 @@
 <?php
 require_once __DIR__ . '/../config/database.php';
 
-// Specific helper functions for the cinema booking system
 function getMovie($id) {
   return executePreparedQuery("SELECT * FROM movies WHERE id = ?", [$id], 'i');
 }
@@ -47,14 +46,11 @@ function getImagePath($imagePath) {
     return '/Cinema/assets/img/default.jpg';
   }
   
-  // If already absolute path starting with /Cinema, return as is
   if (strpos($imagePath, '/Cinema/') === 0) {
     return $imagePath;
   }
   
-  // Extract filename from paths like ./assets/img/image.jpg or assets/img/image.jpg
   $filename = basename($imagePath);
   
-  // Return absolute path
   return '/Cinema/assets/img/' . $filename;
 }

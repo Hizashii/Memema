@@ -2,14 +2,13 @@
 require_once __DIR__ . '/../app/auth/admin_auth.php';
 require_once __DIR__ . '/../config/security.php';
 require_once __DIR__ . '/../app/core/database.php';
+require_once __DIR__ . '/../app/core/router.php';
 
-// Check admin login
 requireAdminLogin();
 
 $message = '';
 $error = '';
 
-// Handle status updates
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     if ($_POST['action'] === 'update_status') {
         $messageId = (int)$_POST['message_id'];
@@ -27,7 +26,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
 }
 
-// Get contact messages
 try {
     $messages = executeQuery(
         "SELECT * FROM contact_messages ORDER BY created_at DESC"
@@ -53,7 +51,7 @@ try {
     <div class="container mx-auto px-4 py-8">
         <div class="flex justify-between items-center mb-8">
             <h1 class="text-3xl font-bold text-gray-800">Contact Messages</h1>
-            <a href="index.php" class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors">
+            <a href="<?= route('admin.dashboard') ?>" class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors">
                 <i class="fas fa-arrow-left mr-2"></i>Back to Dashboard
             </a>
         </div>
@@ -203,7 +201,6 @@ try {
         document.getElementById('messageModal').classList.add('hidden');
     }
     
-    // Close modal when clicking outside
     document.getElementById('messageModal').addEventListener('click', function(e) {
         if (e.target === this) {
             closeModal();

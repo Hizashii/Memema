@@ -46,6 +46,20 @@ try {
     );
     
     if ($result) {
+        $to = 'lachezardimchovv@gmail.com';
+        $emailSubject = 'New Contact Form Message: ' . $subject;
+        $emailMessage = "You have received a new message from the CinemaBook contact form.\n\n";
+        $emailMessage .= "Name: " . $name . "\n";
+        $emailMessage .= "Email: " . $email . "\n";
+        $emailMessage .= "Subject: " . $subject . "\n\n";
+        $emailMessage .= "Message:\n" . $message . "\n";
+        
+        $headers = "From: CinemaBook Contact Form <noreply@cinemabook.com>\r\n";
+        $headers .= "Reply-To: " . $email . "\r\n";
+        $headers .= "X-Mailer: PHP/" . phpversion();
+        
+        mail($to, $emailSubject, $emailMessage, $headers);
+        
         echo json_encode(['success' => true, 'message' => 'Thank you for your message! We will get back to you soon.']);
     } else {
         echo json_encode(['success' => false, 'error' => 'Failed to send message. Please try again.']);

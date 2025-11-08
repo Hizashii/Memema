@@ -1,9 +1,14 @@
 <?php include dirname(__DIR__) . '/partials/header.php'; ?>
 
 <?php
+require_once __DIR__ . '/../../../app/auth/user_auth.php';
 require_once __DIR__ . '/../../../app/config/database.php';
 require_once __DIR__ . '/../../../app/config/security.php';
 require_once __DIR__ . '/../../../app/core/database.php';
+
+requireUserLogin();
+
+$user = getCurrentUser();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $movie_id = validateInt($_POST['movie_id'] ?? 0, 1);
@@ -22,9 +27,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$movie_id || !$venue_id || !$screen_id || !$show_date || !$show_time || !$seats || 
         !$full_name || !$email || !$phone || !$terms) {
         $error = "Please fill in all required fields and accept the terms.";
+    } elseif (!$user || !$user['id']) {
+        $error = "You must be logged in to make a booking.";
     } else {
         try {
-            $user_id = 1;
+            $user_id = $user['id'];
             
             $booking_id = insertBooking($user_id, $movie_id, $venue_id, $screen_id, $show_date, $show_time, count(explode(',', $seats)), $total_price);
             

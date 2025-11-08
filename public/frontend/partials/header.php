@@ -69,7 +69,7 @@ $user = getCurrentUser();
       <a href="#" class="text-gray-600 hover:text-purple-700" aria-label="Search">
         <i class="fas fa-search"></i>
       </a>
-      <?php if (isUserLoggedIn()): ?>
+      <?php if (isUserLoggedIn() && $user): ?>
         <div class="flex items-center space-x-3">
           <span class="text-sm text-gray-600">Welcome, <?= htmlspecialchars($user['name']) ?></span>
           <a href="<?= $basePath ?>pages/logout.php" class="text-gray-700 hover:text-purple-700">
