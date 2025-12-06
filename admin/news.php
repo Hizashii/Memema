@@ -1,15 +1,24 @@
 <?php
 require_once __DIR__ . '/../app/auth/admin_auth.php';
 require_once __DIR__ . '/../app/config/database.php';
+require_once __DIR__ . '/../app/config/security.php';
 require_once __DIR__ . '/../app/core/database.php';
 require_once __DIR__ . '/../app/core/router.php';
 
+// Set security headers
+setSecurityHeaders();
+
 requireAdminLogin();
 
-$message = '';
-$error = '';
+// Flash messages
+$message = $_SESSION['flash_message'] ?? '';
+$error = $_SESSION['flash_error'] ?? '';
+unset($_SESSION['flash_message'], $_SESSION['flash_error']);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Validate CSRF token
+    validateCSRF();
+    
     $action = $_POST['action'] ?? '';
     
     try {
@@ -234,6 +243,7 @@ $admin = getAdminInfo();
         <div class="flex items-center justify-center min-h-screen p-4">
             <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full">
                 <form method="POST" id="newsForm">
+                    <?= csrfField() ?>
                     <input type="hidden" name="action" id="formAction">
                     <input type="hidden" name="id" id="articleId">
                     
@@ -325,6 +335,7 @@ $admin = getAdminInfo();
 
     <!-- Delete Form -->
     <form id="deleteForm" method="POST" style="display: none;">
+        <?= csrfField() ?>
         <input type="hidden" name="action" value="delete">
         <input type="hidden" name="id" id="deleteId">
     </form>

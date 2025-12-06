@@ -1,6 +1,10 @@
 <?php
 require_once __DIR__ . '/../app/auth/admin_auth.php';
+require_once __DIR__ . '/../app/config/security.php';
 require_once __DIR__ . '/../app/core/router.php';
+
+// Set security headers
+setSecurityHeaders();
 
 if (isAdminLoggedIn()) {
     redirect('admin.dashboard');
@@ -9,16 +13,26 @@ if (isAdminLoggedIn()) {
 $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $username = trim($_POST['username'] ?? '');
-    $password = $_POST['password'] ?? '';
+    // Validate CSRF token
+    validateCSRF();
     
-    if (empty($username) || empty($password)) {
-        $error = 'Please enter both username and password.';
+    // Rate limiting for login attempts
+    if (!checkRateLimit('admin_login', 5, 300)) {
+        $error = 'Too many login attempts. Please try again in 5 minutes.';
     } else {
-        if (adminLogin($username, $password)) {
-            redirect('admin.dashboard');
+        $username = trim($_POST['username'] ?? '');
+        $password = $_POST['password'] ?? '';
+        
+        if (empty($username) || empty($password)) {
+            $error = 'Please enter both username and password.';
         } else {
-            $error = 'Invalid username or password.';
+            if (adminLogin($username, $password)) {
+                // Regenerate session ID on login
+                session_regenerate_id(true);
+                redirect('admin.dashboard');
+            } else {
+                $error = 'Invalid username or password.';
+            }
         }
     }
 }
@@ -47,6 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
         
         <form class="mt-8 space-y-6" method="POST">
+            <?= csrfField() ?>
             <?php if ($error): ?>
                 <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md">
                     <i class="fas fa-exclamation-circle mr-2"></i>

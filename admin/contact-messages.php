@@ -1,15 +1,24 @@
 <?php
 require_once __DIR__ . '/../app/auth/admin_auth.php';
-require_once __DIR__ . '/../config/security.php';
+require_once __DIR__ . '/../app/config/database.php';
+require_once __DIR__ . '/../app/config/security.php';
 require_once __DIR__ . '/../app/core/database.php';
 require_once __DIR__ . '/../app/core/router.php';
 
+// Set security headers
+setSecurityHeaders();
+
 requireAdminLogin();
 
-$message = '';
-$error = '';
+// Flash messages
+$message = $_SESSION['flash_message'] ?? '';
+$error = $_SESSION['flash_error'] ?? '';
+unset($_SESSION['flash_message'], $_SESSION['flash_error']);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
+    // Validate CSRF token
+    validateCSRF();
+    
     if ($_POST['action'] === 'update_status') {
         $messageId = (int)$_POST['message_id'];
         $status = $_POST['status'];
@@ -123,6 +132,7 @@ try {
                                             <i class="fas fa-eye"></i> View
                                         </button>
                                         <form method="POST" class="inline">
+                                            <?= csrfField() ?>
                                             <input type="hidden" name="action" value="update_status">
                                             <input type="hidden" name="message_id" value="<?= $msg['id'] ?>">
                                             <select name="status" onchange="this.form.submit()" class="text-xs border rounded px-2 py-1">

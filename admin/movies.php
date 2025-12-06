@@ -1,15 +1,24 @@
 <?php
 require_once __DIR__ . '/../app/auth/admin_auth.php';
 require_once __DIR__ . '/../app/config/database.php';
+require_once __DIR__ . '/../app/config/security.php';
 require_once __DIR__ . '/../app/core/database.php';
 require_once __DIR__ . '/../app/core/router.php';
 
+// Set security headers
+setSecurityHeaders();
+
 requireAdminLogin();
 
-$message = '';
-$error = '';
+// Check for flash messages from redirect
+$message = $_SESSION['flash_message'] ?? '';
+$error = $_SESSION['flash_error'] ?? '';
+unset($_SESSION['flash_message'], $_SESSION['flash_error']);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Validate CSRF token
+    validateCSRF();
+    
     $action = $_POST['action'] ?? '';
     
     try {
@@ -24,12 +33,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new Exception('Please fill in all required fields.');
             }
             
-            $movie_id = executePreparedQuery(
+            // Use executeInsert to get the new movie ID
+            $movie_id = executeInsert(
                 "INSERT INTO movies (title, img, duration_minutes, rating) VALUES (?, ?, ?, ?)",
                 [$title, $img, $duration_minutes, $rating],
                 'ssid'
             );
             
+            // Now insert genres with the correct movie_id
             foreach ($genres as $genre) {
                 if (!empty(trim($genre))) {
                     executePreparedQuery(
@@ -40,7 +51,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
             
-            $message = 'Movie created successfully!';
+            $_SESSION['flash_message'] = 'Movie created successfully!';
             
         } elseif ($action === 'update') {
             $id = (int)($_POST['id'] ?? 0);
@@ -72,7 +83,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
             
-            $message = 'Movie updated successfully!';
+            $_SESSION['flash_message'] = 'Movie updated successfully!';
             
         } elseif ($action === 'delete') {
             $id = (int)($_POST['id'] ?? 0);
@@ -83,10 +94,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             executePreparedQuery("DELETE FROM movies WHERE id = ?", [$id], 'i');
             
-            $message = 'Movie deleted successfully!';
+            $_SESSION['flash_message'] = 'Movie deleted successfully!';
         }
+        
+        // Redirect to prevent duplicate submissions on refresh (PRG pattern)
+        header('Location: ' . $_SERVER['REQUEST_URI']);
+        exit;
+        
     } catch (Exception $e) {
-        $error = $e->getMessage();
+        $_SESSION['flash_error'] = $e->getMessage();
+        header('Location: ' . $_SERVER['REQUEST_URI']);
+        exit;
     }
 }
 
@@ -278,6 +296,7 @@ $admin = getAdminInfo();
         <div class="flex items-center justify-center min-h-screen p-4">
             <div class="bg-white rounded-lg shadow-xl max-w-md w-full">
                 <form method="POST" id="movieForm">
+                    <?= csrfField() ?>
                     <input type="hidden" name="action" id="formAction">
                     <input type="hidden" name="id" id="movieId">
                     
@@ -387,6 +406,7 @@ $admin = getAdminInfo();
 
     <!-- Delete Form -->
     <form id="deleteForm" method="POST" style="display: none;">
+        <?= csrfField() ?>
         <input type="hidden" name="action" value="delete">
         <input type="hidden" name="id" id="deleteId">
     </form>
@@ -493,18 +513,34 @@ $admin = getAdminInfo();
                 method: 'POST',
                 body: formData
             })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    document.getElementById('img').value = data.path;
-                    closeUploadModal();
-                    alert('Image uploaded successfully!');
-                } else {
-                    alert('Upload failed: ' + data.error);
+            .then(response => {
+                // Check if response is ok
+                if (!response.ok) {
+                    throw new Error('HTTP error! status: ' + response.status);
+                }
+                // Get response text first to debug
+                return response.text();
+            })
+            .then(text => {
+                try {
+                    const data = JSON.parse(text);
+                    if (data.success) {
+                        // Use relative_path for database storage
+                        document.getElementById('img').value = data.relative_path || data.path;
+                        closeUploadModal();
+                        alert('Image uploaded successfully!');
+                    } else {
+                        alert('Upload failed: ' + (data.error || 'Unknown error'));
+                    }
+                } catch (e) {
+                    console.error('JSON Parse Error:', e);
+                    console.error('Response text:', text);
+                    alert('Upload failed: Invalid response from server. Check console for details.');
                 }
             })
             .catch(error => {
-                alert('Upload failed: ' + error);
+                console.error('Upload Error:', error);
+                alert('Upload failed: ' + error.message);
             })
             .finally(() => {
                 uploadButton.textContent = originalText;

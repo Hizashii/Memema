@@ -1,10 +1,14 @@
 <?php
 define('CINEMA_APP', true);
 
-define('DB_HOST', 'sql108.infinityfree.com');
-define('DB_USER', 'if0_40366111');
-define('DB_PASS', 'iSaulkMzylk'); 
-define('DB_NAME', 'if0_40366111_Cinema');
+// Load environment configuration
+require_once __DIR__ . '/env.php';
+
+// Database configuration from environment
+define('DB_HOST', Env::get('DB_HOST', 'localhost'));
+define('DB_USER', Env::get('DB_USER', 'root'));
+define('DB_PASS', Env::get('DB_PASS', '')); 
+define('DB_NAME', Env::get('DB_NAME', 'Cinema'));
 
 function getDBConnection() {
   static $connection = null;
@@ -59,6 +63,28 @@ function executePreparedQuery($query, $params = [], $types = '') {
   
   $stmt->close();
   return $data;
+}
+
+// Execute INSERT and return the new ID
+function executeInsert($query, $params = [], $types = '') {
+  $conn = getDBConnection();
+  $stmt = $conn->prepare($query);
+  
+  if (!$stmt) {
+    throw new Exception("Prepare failed: " . $conn->error);
+  }
+  
+  if (!empty($params)) {
+    $stmt->bind_param($types, ...$params);
+  }
+  
+  if (!$stmt->execute()) {
+    throw new Exception("Execute failed: " . $stmt->error);
+  }
+  
+  $insertId = $conn->insert_id;
+  $stmt->close();
+  return $insertId;
 }
 
 function closeDBConnection() {

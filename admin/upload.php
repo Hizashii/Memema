@@ -1,66 +1,94 @@
 <?php
-require_once __DIR__ . '/../app/auth/admin_auth.php';
-require_once __DIR__ . '/../app/config/security.php';
-require_once __DIR__ . '/../app/core/database.php';
+header('Content-Type: application/json');
 
-if (!isAdminLoggedIn()) {
-    header('Content-Type: application/json');
-    echo json_encode(['success' => false, 'error' => 'Authentication required']);
+// Define constant before including security.php
+if (!defined('CINEMA_APP')) {
+    define('CINEMA_APP', true);
+}
+
+// Step 1: Load admin auth
+try {
+    require_once __DIR__ . '/../app/auth/admin_auth.php';
+} catch (Throwable $e) {
+    echo json_encode(['success' => false, 'error' => 'Error loading admin_auth: ' . $e->getMessage(), 'step' => 1]);
     exit;
 }
 
-$message = '';
-$error = '';
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['image'])) {
-    try {
-        $uploadDir = __DIR__ . '/../assets/img/';
-        
-        if (!is_dir($uploadDir)) {
-            mkdir($uploadDir, 0755, true);
-        }
-        
-        $file = $_FILES['image'];
-        $fileName = $file['name'];
-        $fileTmpName = $file['tmp_name'];
-        $fileSize = $file['size'];
-        $fileError = $file['error'];
-        
-        if ($fileError !== UPLOAD_ERR_OK) {
-            throw new Exception('File upload error: ' . $fileError);
-        }
-        
-        if ($fileSize > 5 * 1024 * 1024) {
-            throw new Exception('File too large. Maximum size is 5MB.');
-        }
-        
-        $fileExt = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
-        $allowedExts = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
-        
-        if (!in_array($fileExt, $allowedExts)) {
-            throw new Exception('Invalid file type. Allowed: ' . implode(', ', $allowedExts));
-        }
-        
-        $newFileName = uniqid() . '_' . time() . '.' . $fileExt;
-        $filePath = $uploadDir . $newFileName;
-        
-        if (move_uploaded_file($fileTmpName, $filePath)) {
-            $base = getBasePath();
-            $imageUrl = $base . '/assets/img/' . $newFileName;
-            $message = json_encode(['success' => true, 'path' => $imageUrl, 'filename' => $newFileName]);
-        } else {
-            throw new Exception('Failed to move uploaded file.');
-        }
-        
-    } catch (Exception $e) {
-        $error = json_encode(['success' => false, 'error' => $e->getMessage()]);
-    }
+// Step 2: Check authentication
+if (!isAdminLoggedIn()) {
+    http_response_code(401);
+    echo json_encode(['success' => false, 'error' => 'Authentication required', 'step' => 2]);
+    exit;
 }
 
-header('Content-Type: application/json');
-if ($message) {
-    echo $message;
-} else {
-    echo $error ?: json_encode(['success' => false, 'error' => 'No file uploaded']);
+// Step 3: Check request
+if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !isset($_FILES['image'])) {
+    echo json_encode(['success' => false, 'error' => 'No file uploaded', 'step' => 3]);
+    exit;
+}
+
+// Step 4: Check file error
+if ($_FILES['image']['error'] !== UPLOAD_ERR_OK) {
+    echo json_encode(['success' => false, 'error' => 'Upload error: ' . $_FILES['image']['error'], 'step' => 4]);
+    exit;
+}
+
+// Step 5: Process upload manually (no OOP class)
+try {
+    $uploadDir = __DIR__ . '/../assets/img/';
+    
+    // Create directory if needed
+    if (!is_dir($uploadDir)) {
+        mkdir($uploadDir, 0755, true);
+    }
+    
+    // Get file info
+    $file = $_FILES['image'];
+    $fileName = $file['name'];
+    $fileTmpName = $file['tmp_name'];
+    $fileSize = $file['size'];
+    
+    // Validate size (5MB max)
+    if ($fileSize > 5 * 1024 * 1024) {
+        echo json_encode(['success' => false, 'error' => 'File too large (max 5MB)', 'step' => 5]);
+        exit;
+    }
+    
+    // Validate extension
+    $fileExt = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
+    $allowedExts = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+    
+    if (!in_array($fileExt, $allowedExts)) {
+        echo json_encode(['success' => false, 'error' => 'Invalid file type', 'step' => 5]);
+        exit;
+    }
+    
+    // Validate it's actually an image
+    $imageInfo = @getimagesize($fileTmpName);
+    if ($imageInfo === false) {
+        echo json_encode(['success' => false, 'error' => 'File is not a valid image', 'step' => 5]);
+        exit;
+    }
+    
+    // Generate unique filename
+    $newFileName = 'img_' . uniqid() . '_' . time() . '.' . $fileExt;
+    $filePath = $uploadDir . $newFileName;
+    
+    // Move file
+    if (!move_uploaded_file($fileTmpName, $filePath)) {
+        echo json_encode(['success' => false, 'error' => 'Failed to move uploaded file', 'step' => 5]);
+        exit;
+    }
+    
+    // Success!
+    echo json_encode([
+        'success' => true,
+        'path' => '/Cinema/assets/img/' . $newFileName,
+        'filename' => $newFileName,
+        'relative_path' => './assets/img/' . $newFileName
+    ]);
+    
+} catch (Throwable $e) {
+    echo json_encode(['success' => false, 'error' => 'Upload error: ' . $e->getMessage(), 'step' => 5]);
 }
 ?>

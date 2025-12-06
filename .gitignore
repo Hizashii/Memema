@@ -1,2 +1,29 @@
+# ===========================================
+# SENSITIVE FILES - NEVER COMMIT THESE
+# ===========================================
 app/config/admin_credentials.php
+app/config/environment.php
+.env
+*.env
+
+# ===========================================
+# UPLOADS (optional - uncomment if needed)
+# ===========================================
+# assets/img/img_*
+
+# ===========================================
+# IDE AND SYSTEM FILES
+# ===========================================
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ===========================================
+# LOGS
+# ===========================================
+*.log
+logs/
 
