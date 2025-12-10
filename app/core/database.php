@@ -81,3 +81,4 @@ function getImagePath($imagePath) {
     $filename = basename($imagePath);
     return $base . '/assets/img/' . $filename;
 }
+

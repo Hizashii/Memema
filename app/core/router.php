@@ -44,4 +44,3 @@ function isRoute($routeName) {
     
     return $currentPath === $routePath;
 }
-
