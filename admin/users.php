@@ -1,90 +1,95 @@
 <?php
+/**
+ * Users Management - Admin Panel
+ * Uses OOP User class for all database operations
+ */
 require_once __DIR__ . '/../app/auth/admin_auth.php';
 require_once __DIR__ . '/../app/config/database.php';
 require_once __DIR__ . '/../app/config/security.php';
+require_once __DIR__ . '/../app/classes/Database.php';
+require_once __DIR__ . '/../app/classes/User.php';
 require_once __DIR__ . '/../app/core/database.php';
 require_once __DIR__ . '/../app/core/router.php';
 
-// Set security headers
 setSecurityHeaders();
-
 requireAdminLogin();
 
-// Flash messages
 $message = $_SESSION['flash_message'] ?? '';
 $error = $_SESSION['flash_error'] ?? '';
 unset($_SESSION['flash_message'], $_SESSION['flash_error']);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // Validate CSRF token
     validateCSRF();
-    
     $action = $_POST['action'] ?? '';
     
     try {
         if ($action === 'create') {
-            $full_name = trim($_POST['full_name'] ?? '');
             $email = trim($_POST['email'] ?? '');
-            $phone = trim($_POST['phone'] ?? '');
             
-            if (empty($full_name) || empty($email)) {
-                throw new Exception('Please fill in all required fields.');
-            }
-            
-            $existing = executePreparedQuery("SELECT id FROM users WHERE email = ?", [$email], 's');
-            if (!empty($existing)) {
+            // Check if email already exists
+            if (User::getByEmail($email)) {
                 throw new Exception('Email already exists.');
             }
             
-            executePreparedQuery(
-                "INSERT INTO users (full_name, email, phone, created_at) VALUES (?, ?, ?, NOW())",
-                [$full_name, $email, $phone],
-                'sss'
-            );
+            $user = new User([
+                'full_name' => trim($_POST['full_name'] ?? ''),
+                'email' => $email,
+                'phone' => trim($_POST['phone'] ?? ''),
+                'password' => 'defaultpass123' // Default password for admin-created users
+            ]);
             
-            $message = 'User created successfully!';
+            if (empty($user->getFullName()) || empty($user->getEmail())) {
+                throw new Exception('Please fill in all required fields.');
+            }
+            
+            $user->create();
+            $_SESSION['flash_message'] = 'User created successfully!';
             
         } elseif ($action === 'update') {
             $id = (int)($_POST['id'] ?? 0);
-            $full_name = trim($_POST['full_name'] ?? '');
             $email = trim($_POST['email'] ?? '');
-            $phone = trim($_POST['phone'] ?? '');
+            if ($id <= 0) throw new Exception('Invalid user ID.');
             
-            if ($id <= 0 || empty($full_name) || empty($email)) {
-                throw new Exception('Please fill in all required fields.');
-            }
-            
-            $existing = executePreparedQuery("SELECT id FROM users WHERE email = ? AND id != ?", [$email, $id], 'si');
-            if (!empty($existing)) {
+            // Check if email already exists for another user
+            $existingUser = User::getByEmail($email);
+            if ($existingUser && $existingUser['id'] != $id) {
                 throw new Exception('Email already exists.');
             }
             
-            executePreparedQuery(
-                "UPDATE users SET full_name = ?, email = ?, phone = ? WHERE id = ?",
-                [$full_name, $email, $phone, $id],
-                'sssi'
-            );
+            $user = new User([
+                'id' => $id,
+                'full_name' => trim($_POST['full_name'] ?? ''),
+                'email' => $email,
+                'phone' => trim($_POST['phone'] ?? '')
+            ]);
             
-            $message = 'User updated successfully!';
+            if (empty($user->getFullName()) || empty($user->getEmail())) {
+                throw new Exception('Please fill in all required fields.');
+            }
+            
+            $user->update();
+            $_SESSION['flash_message'] = 'User updated successfully!';
             
         } elseif ($action === 'delete') {
             $id = (int)($_POST['id'] ?? 0);
+            if ($id <= 0) throw new Exception('Invalid user ID.');
             
-            if ($id <= 0) {
-                throw new Exception('Invalid user ID.');
-            }
-            
-            executePreparedQuery("DELETE FROM users WHERE id = ?", [$id], 'i');
-            
-            $message = 'User deleted successfully!';
+            User::delete($id);
+            $_SESSION['flash_message'] = 'User deleted successfully!';
         }
+        
+        header('Location: ' . $_SERVER['REQUEST_URI']);
+        exit;
+        
     } catch (Exception $e) {
-        $error = $e->getMessage();
+        $_SESSION['flash_error'] = $e->getMessage();
+        header('Location: ' . $_SERVER['REQUEST_URI']);
+        exit;
     }
 }
 
 try {
-    $users = executeQuery("
+    $users = Database::query("
         SELECT u.*, 
                COUNT(b.id) as booking_count,
                COALESCE(SUM(b.total_price), 0) as total_spent
@@ -110,73 +115,11 @@ $admin = getAdminInfo();
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body class="bg-gray-100">
-    <!-- Navigation -->
-    <nav class="bg-white shadow-sm border-b">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex justify-between h-16">
-                <div class="flex items-center">
-                    <div class="flex-shrink-0 flex items-center">
-                        <i class="fas fa-film text-purple-700 text-2xl mr-3"></i>
-                        <span class="text-xl font-bold text-gray-900">CinemaBook Admin</span>
-                    </div>
-                </div>
-                <div class="flex items-center space-x-4">
-                    <span class="text-gray-700">Welcome, <?= htmlspecialchars($admin['username']) ?></span>
-                    <a href="<?= route('admin.logout') ?>" 
-                       class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm">
-                        <i class="fas fa-sign-out-alt mr-1"></i>
-                        Logout
-                    </a>
-                </div>
-            </div>
-        </div>
-    </nav>
+    <?php include __DIR__ . '/partials/header.php'; ?>
 
     <div class="flex">
-        <!-- Sidebar -->
-        <div class="w-64 bg-white shadow-sm min-h-screen">
-            <div class="p-4">
-                <nav class="space-y-2">
-                    <a href="<?= route('admin.dashboard') ?>" 
-                       class="flex items-center px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-md">
-                        <i class="fas fa-tachometer-alt mr-3"></i>
-                        Dashboard
-                    </a>
-                    <a href="<?= route('admin.movies') ?>" 
-                       class="flex items-center px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-md">
-                        <i class="fas fa-film mr-3"></i>
-                        Movies
-                    </a>
-                    <a href="<?= route('admin.news') ?>" 
-                       class="flex items-center px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-md">
-                        <i class="fas fa-newspaper mr-3"></i>
-                        News
-                    </a>
-                    <a href="<?= route('admin.venues') ?>" 
-                       class="flex items-center px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-md">
-                        <i class="fas fa-building mr-3"></i>
-                        Venues
-                    </a>
-                    <a href="<?= route('admin.bookings') ?>" 
-                       class="flex items-center px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-md">
-                        <i class="fas fa-ticket-alt mr-3"></i>
-                        Bookings
-                    </a>
-                    <a href="<?= route('admin.users') ?>" 
-                       class="flex items-center px-4 py-2 text-sm font-medium text-white bg-purple-700 rounded-md">
-                        <i class="fas fa-users mr-3"></i>
-                        Users
-                    </a>
-                    <a href="<?= route('public.home') ?>" 
-                       class="flex items-center px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-md">
-                        <i class="fas fa-external-link-alt mr-3"></i>
-                        View Website
-                    </a>
-                </nav>
-            </div>
-        </div>
+        <?php $currentPage = 'users'; include __DIR__ . '/partials/sidebar.php'; ?>
 
-        <!-- Main Content -->
         <div class="flex-1 p-8">
             <div class="mb-8">
                 <div class="flex justify-between items-center">
@@ -184,77 +127,57 @@ $admin = getAdminInfo();
                         <h1 class="text-3xl font-bold text-gray-900">Users Management</h1>
                         <p class="text-gray-600">Manage user accounts and profiles</p>
                     </div>
-                    <button onclick="openModal('create')" 
-                            class="bg-purple-700 hover:bg-purple-800 text-white px-4 py-2 rounded-md">
-                        <i class="fas fa-plus mr-2"></i>
-                        Add User
+                    <button onclick="openModal('create')" class="bg-purple-700 hover:bg-purple-800 text-white px-4 py-2 rounded-md">
+                        <i class="fas fa-plus mr-2"></i>Add User
                     </button>
                 </div>
             </div>
 
-            <!-- Messages -->
             <?php if ($message): ?>
                 <div class="mb-4 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-md">
-                    <i class="fas fa-check-circle mr-2"></i>
-                    <?= htmlspecialchars($message) ?>
+                    <i class="fas fa-check-circle mr-2"></i><?= htmlspecialchars($message) ?>
                 </div>
             <?php endif; ?>
 
             <?php if ($error): ?>
                 <div class="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md">
-                    <i class="fas fa-exclamation-circle mr-2"></i>
-                    <?= htmlspecialchars($error) ?>
+                    <i class="fas fa-exclamation-circle mr-2"></i><?= htmlspecialchars($error) ?>
                 </div>
             <?php endif; ?>
 
-            <!-- Users Table -->
             <div class="bg-white shadow rounded-lg overflow-hidden">
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50">
                         <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Phone</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bookings</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Spent</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Joined</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Phone</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Bookings</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total Spent</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Joined</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                         </tr>
                     </thead>
                     <tbody class="bg-white divide-y divide-gray-200">
                         <?php foreach ($users as $user): ?>
                             <tr>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                    #<?= $user['id'] ?>
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap">
-                                    <div class="text-sm font-medium text-gray-900"><?= htmlspecialchars($user['full_name']) ?></div>
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap">
-                                    <div class="text-sm text-gray-900"><?= htmlspecialchars($user['email']) ?></div>
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                    <?= htmlspecialchars($user['phone'] ?: 'N/A') ?>
-                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#<?= $user['id'] ?></td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900"><?= htmlspecialchars($user['full_name']) ?></td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900"><?= htmlspecialchars($user['email']) ?></td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= htmlspecialchars($user['phone'] ?: 'N/A') ?></td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
                                         <?= $user['booking_count'] ?> booking<?= $user['booking_count'] != 1 ? 's' : '' ?>
                                     </span>
                                 </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                    $<?= number_format($user['total_spent'], 2) ?>
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                    <?= date('M j, Y', strtotime($user['created_at'])) ?>
-                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">$<?= number_format($user['total_spent'], 2) ?></td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= date('M j, Y', strtotime($user['created_at'])) ?></td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                    <button onclick="openModal('update', <?= htmlspecialchars(json_encode($user)) ?>)" 
-                                            class="text-indigo-600 hover:text-indigo-900 mr-3">
+                                    <button onclick='openModal("update", <?= htmlspecialchars(json_encode($user)) ?>)' class="text-indigo-600 hover:text-indigo-900 mr-3">
                                         <i class="fas fa-edit"></i>
                                     </button>
-                                    <button onclick="deleteUser(<?= $user['id'] ?>)" 
-                                            class="text-red-600 hover:text-red-900">
+                                    <button onclick="deleteUser(<?= $user['id'] ?>)" class="text-red-600 hover:text-red-900">
                                         <i class="fas fa-trash"></i>
                                     </button>
                                 </td>
@@ -282,39 +205,29 @@ $admin = getAdminInfo();
                     <div class="px-6 py-4 space-y-4">
                         <div>
                             <label for="full_name" class="block text-sm font-medium text-gray-700">Full Name *</label>
-                            <input type="text" id="full_name" name="full_name" required
-                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500">
+                            <input type="text" id="full_name" name="full_name" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500">
                         </div>
                         
                         <div>
                             <label for="email" class="block text-sm font-medium text-gray-700">Email *</label>
-                            <input type="email" id="email" name="email" required
-                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500">
+                            <input type="email" id="email" name="email" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500">
                         </div>
                         
                         <div>
                             <label for="phone" class="block text-sm font-medium text-gray-700">Phone</label>
-                            <input type="tel" id="phone" name="phone"
-                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500">
+                            <input type="tel" id="phone" name="phone" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500">
                         </div>
                     </div>
                     
                     <div class="px-6 py-4 bg-gray-50 flex justify-end space-x-3">
-                        <button type="button" onclick="closeModal()" 
-                                class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">
-                            Cancel
-                        </button>
-                        <button type="submit" 
-                                class="px-4 py-2 bg-purple-700 text-white rounded-md hover:bg-purple-800">
-                            Save
-                        </button>
+                        <button type="button" onclick="closeModal()" class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">Cancel</button>
+                        <button type="submit" class="px-4 py-2 bg-purple-700 text-white rounded-md hover:bg-purple-800">Save</button>
                     </div>
                 </form>
             </div>
         </div>
     </div>
 
-    <!-- Delete Form -->
     <form id="deleteForm" method="POST" style="display: none;">
         <?= csrfField() ?>
         <input type="hidden" name="action" value="delete">
@@ -323,32 +236,24 @@ $admin = getAdminInfo();
 
     <script>
         function openModal(action, user = null) {
-            const modal = document.getElementById('modal');
-            const form = document.getElementById('userForm');
-            const formAction = document.getElementById('formAction');
-            const userId = document.getElementById('userId');
-            const modalTitle = document.getElementById('modalTitle');
-            
-            formAction.value = action;
+            document.getElementById('formAction').value = action;
             
             if (action === 'create') {
-                modalTitle.textContent = 'Add User';
-                form.reset();
-                userId.value = '';
+                document.getElementById('modalTitle').textContent = 'Add User';
+                document.getElementById('userForm').reset();
+                document.getElementById('userId').value = '';
             } else if (action === 'update' && user) {
-                modalTitle.textContent = 'Edit User';
-                userId.value = user.id;
+                document.getElementById('modalTitle').textContent = 'Edit User';
+                document.getElementById('userId').value = user.id;
                 document.getElementById('full_name').value = user.full_name;
                 document.getElementById('email').value = user.email;
                 document.getElementById('phone').value = user.phone || '';
             }
             
-            modal.classList.remove('hidden');
+            document.getElementById('modal').classList.remove('hidden');
         }
         
-        function closeModal() {
-            document.getElementById('modal').classList.add('hidden');
-        }
+        function closeModal() { document.getElementById('modal').classList.add('hidden'); }
         
         function deleteUser(id) {
             if (confirm('Are you sure you want to delete this user? This will also delete all their bookings.')) {
@@ -357,11 +262,7 @@ $admin = getAdminInfo();
             }
         }
         
-        document.getElementById('modal').addEventListener('click', function(e) {
-            if (e.target === this) {
-                closeModal();
-            }
-        });
+        document.getElementById('modal').addEventListener('click', e => { if (e.target.id === 'modal') closeModal(); });
     </script>
 </body>
 </html>

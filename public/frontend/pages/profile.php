@@ -1,24 +1,32 @@
-<?php include dirname(__DIR__) . '/partials/header.php'; ?>
-
 <?php
-require_once __DIR__ . '/../../../app/config/database.php';
+require_once __DIR__ . '/../../../app/classes/autoload.php';
 require_once __DIR__ . '/../../../app/core/database.php';
+require_once __DIR__ . '/../../../app/auth/user_auth.php';
+
+// Include header only when accessed directly (not via index.php)
+if (!defined('LOADED_VIA_INDEX')) {
+    include dirname(__DIR__) . '/partials/header.php';
+}
+
+requireUserLogin();
+
+$userId = $_SESSION['user_id'] ?? null;
+$user = null;
+$history = [];
 
 try {
-    $user = executeQuery("SELECT full_name AS name, email FROM users LIMIT 1");
-    $user = $user[0] ?? ['name' => 'Guest', 'email' => ''];
-
-    $history = executeQuery(
-        "SELECT m.title AS movie_title, b.show_date, b.seats_count, b.total_price
-         FROM bookings b
-         JOIN movies m ON m.id = b.movie_id
-         ORDER BY b.created_at DESC
-         LIMIT 10"
-    );
+    if ($userId) {
+        $user = User::getById($userId);
+        $history = Booking::getByUserId($userId);
+    }
 } catch (Exception $e) {
-    $user = ['name' => 'Guest', 'email' => ''];
+    $user = ['full_name' => 'Guest', 'email' => ''];
     $history = [];
     $error = "Unable to load profile information. Please try again later.";
+}
+
+if (!$user) {
+    $user = ['full_name' => 'Guest', 'email' => ''];
 }
 ?>
 
@@ -32,7 +40,7 @@ try {
       <div class="space-y-4">
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
-          <div class="text-lg font-semibold"><?= htmlspecialchars($user['name']) ?></div>
+          <div class="text-lg font-semibold"><?= htmlspecialchars($user['full_name']) ?></div>
         </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
@@ -66,4 +74,4 @@ try {
   </div>
 </main>
 
-<?php include dirname(__DIR__) . '/partials/footer.php'; ?>
+<?php if (!defined('LOADED_VIA_INDEX')) { include dirname(__DIR__) . '/partials/footer.php'; } ?>

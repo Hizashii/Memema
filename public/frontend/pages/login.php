@@ -1,10 +1,13 @@
-<?php include dirname(__DIR__) . '/partials/header.php'; ?>
-
-<?php
+<?php 
+// Load security first for CSRF protection
+if (!defined('CINEMA_APP')) {
+    define('CINEMA_APP', true);
+}
+require_once __DIR__ . '/../../../app/config/security.php';
 require_once __DIR__ . '/../../../app/auth/user_auth.php';
+require_once __DIR__ . '/../../../app/core/database.php';
 
 if (isUserLoggedIn()) {
-    require_once __DIR__ . '/../../../app/core/database.php';
     $base = getBasePath();
     header('Location: ' . $base . '/public/frontend/pages/profile.php');
     exit;
@@ -14,23 +17,35 @@ $error = '';
 $success = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $email = trim($_POST['email'] ?? '');
-    $password = $_POST['password'] ?? '';
-    
-    if (empty($email) || empty($password)) {
-        $error = 'Please fill in all fields';
+    // Verify CSRF token
+    $csrfToken = $_POST['csrf_token'] ?? '';
+    if (!verifyCSRFToken($csrfToken)) {
+        $error = 'Security validation failed. Please refresh the page and try again.';
+    } 
+    // Check rate limiting (max 5 login attempts per 5 minutes)
+    elseif (!checkRateLimit('login_attempt', 5, 300)) {
+        $error = 'Too many login attempts. Please wait a few minutes before trying again.';
     } else {
-        $result = userLogin($email, $password);
-        if ($result['success']) {
-            require_once __DIR__ . '/../../../app/core/database.php';
-            $base = getBasePath();
-            header('Location: ' . $base . '/public/frontend/pages/profile.php');
-            exit;
+        $email = trim($_POST['email'] ?? '');
+        $password = $_POST['password'] ?? '';
+        
+        if (empty($email) || empty($password)) {
+            $error = 'Please fill in all fields';
         } else {
-            $error = $result['error'];
+            $result = userLogin($email, $password);
+            if ($result['success']) {
+                $base = getBasePath();
+                header('Location: ' . $base . '/public/frontend/pages/profile.php');
+                exit;
+            } else {
+                $error = $result['error'];
+            }
         }
     }
 }
+
+// Generate CSRF token
+$csrfToken = generateCSRFToken();
 ?>
 
 <main class="max-w-md mx-auto px-4 py-10">
@@ -55,6 +70,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <?php endif; ?>
 
     <form method="POST" class="space-y-6">
+      <!-- CSRF Token -->
+      <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
+      
       <div>
         <label for="email" class="block text-sm font-medium text-gray-700 mb-2">Email Address</label>
         <input type="email" id="email" name="email" required

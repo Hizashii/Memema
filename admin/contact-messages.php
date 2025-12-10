@@ -1,9 +1,8 @@
 <?php
 require_once __DIR__ . '/../app/auth/admin_auth.php';
-require_once __DIR__ . '/../app/config/database.php';
 require_once __DIR__ . '/../app/config/security.php';
-require_once __DIR__ . '/../app/core/database.php';
 require_once __DIR__ . '/../app/core/router.php';
+require_once __DIR__ . '/../app/classes/ContactMessage.php';
 
 // Set security headers
 setSecurityHeaders();
@@ -24,10 +23,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $status = $_POST['status'];
         
         try {
-            executeQuery(
-                "UPDATE contact_messages SET status = ? WHERE id = ?",
-                [$status, $messageId]
-            );
+            ContactMessage::updateStatus($messageId, $status);
             $message = 'Status updated successfully';
         } catch (Exception $e) {
             $error = 'Failed to update status';
@@ -36,9 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 }
 
 try {
-    $messages = executeQuery(
-        "SELECT * FROM contact_messages ORDER BY created_at DESC"
-    );
+    $messages = ContactMessage::getAll();
 } catch (Exception $e) {
     $messages = [];
     $error = 'Failed to load contact messages';
@@ -127,7 +121,7 @@ try {
                                         <?= date('M j, Y g:i A', strtotime($msg['created_at'])) ?>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                                        <button onclick="viewMessage(<?= $msg['id'] ?>, '<?= htmlspecialchars($msg['name']) ?>', '<?= htmlspecialchars($msg['email']) ?>', '<?= htmlspecialchars($msg['subject']) ?>', '<?= htmlspecialchars($msg['message']) ?>', '<?= $msg['status'] ?>')"
+                                        <button onclick="viewMessage(<?= $msg['id'] ?>, '<?= htmlspecialchars(addslashes($msg['name'])) ?>', '<?= htmlspecialchars(addslashes($msg['email'])) ?>', '<?= htmlspecialchars(addslashes($msg['subject'])) ?>', '<?= htmlspecialchars(addslashes($msg['message'])) ?>', '<?= $msg['status'] ?>')"
                                                 class="text-purple-600 hover:text-purple-900">
                                             <i class="fas fa-eye"></i> View
                                         </button>

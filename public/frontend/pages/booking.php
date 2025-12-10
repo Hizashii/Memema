@@ -1,10 +1,13 @@
-<?php include dirname(__DIR__) . '/partials/header.php'; ?>
-
 <?php
-require_once __DIR__ . '/../../../app/auth/user_auth.php';
-require_once __DIR__ . '/../../../app/config/database.php';
-require_once __DIR__ . '/../../../app/config/security.php';
+require_once __DIR__ . '/../../../app/classes/autoload.php';
 require_once __DIR__ . '/../../../app/core/database.php';
+require_once __DIR__ . '/../../../app/config/security.php';
+require_once __DIR__ . '/../../../app/auth/user_auth.php';
+
+// Include header only when accessed directly (not via index.php)
+if (!defined('LOADED_VIA_INDEX')) {
+    include dirname(__DIR__) . '/partials/header.php';
+}
 
 requireUserLogin();
 
@@ -19,17 +22,13 @@ $screens = [];
 
 if ($movie_id) {
     try {
-        $movie = getMovie($movie_id)[0] ?? null;
+        $movie = Movie::getById($movie_id);
         
         if ($movie) {
-            $venues = executeQuery("SELECT id, name, address FROM venues ORDER BY name");
+            $venues = Venue::getAll();
             
             if ($selected_venue) {
-                $screens = executePreparedQuery(
-                    "SELECT id, screen_name, screen_type, base_price, capacity FROM screens WHERE venue_id = ? ORDER BY screen_name", 
-                    [$selected_venue], 
-                    'i'
-                );
+                $screens = Screen::getByVenueId($selected_venue);
             }
         }
     } catch (Exception $e) {
@@ -88,11 +87,6 @@ if ($movie_id) {
     <?php endif; ?>
 
     <?php if ($selected_venue && $selected_screen): ?>
-          <?php for ($seat_count = 1; $seat_count <= 5; $seat_count++): ?>
-          <?php endfor; ?>
-        </div>
-      </div>
-
       <div class="bg-white rounded-xl border shadow-sm p-6">
         <h2 class="text-xl font-bold mb-4">Select Show Time</h2>
         <div class="grid gap-4 md:grid-cols-3">
@@ -122,4 +116,4 @@ if ($movie_id) {
   <?php endif; ?>
 </main>
 
-<?php include dirname(__DIR__) . '/partials/footer.php'; ?>
+<?php if (!defined('LOADED_VIA_INDEX')) { include dirname(__DIR__) . '/partials/footer.php'; } ?>

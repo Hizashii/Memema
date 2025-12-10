@@ -1,18 +1,35 @@
 <?php
+/**
+ * User Authentication
+ * 
+ * Handles user login, registration, and session management.
+ * Uses OOP Database class for all operations.
+ */
+
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
 require_once __DIR__ . '/../config/database.php';
-require_once __DIR__ . '/../core/database.php';
+require_once __DIR__ . '/../classes/Database.php';
 
+/**
+ * Check if user is logged in
+ */
 function isUserLoggedIn() {
     return isset($_SESSION['user_logged_in']) && $_SESSION['user_logged_in'] === true;
 }
 
+/**
+ * Login user
+ */
 function userLogin($email, $password) {
     try {
-        $users = executePreparedQuery("SELECT id, full_name, email, password, phone FROM users WHERE email = ?", [$email], 's');
+        $users = Database::query(
+            "SELECT id, full_name, email, password, phone FROM users WHERE email = ?", 
+            [$email], 
+            's'
+        );
         
         if (empty($users)) {
             return ['success' => false, 'error' => 'Invalid email or password'];
@@ -35,9 +52,16 @@ function userLogin($email, $password) {
     }
 }
 
+/**
+ * Register new user
+ */
 function userRegister($fullName, $email, $password, $phone = null) {
     try {
-        $existingUsers = executePreparedQuery("SELECT id FROM users WHERE email = ?", [$email], 's');
+        $existingUsers = Database::query(
+            "SELECT id FROM users WHERE email = ?", 
+            [$email], 
+            's'
+        );
         
         if (!empty($existingUsers)) {
             return ['success' => false, 'error' => 'Email already registered'];
@@ -45,34 +69,31 @@ function userRegister($fullName, $email, $password, $phone = null) {
         
         $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
         
-        $conn = getDBConnection();
-        $stmt = $conn->prepare("INSERT INTO users (full_name, email, password, phone) VALUES (?, ?, ?, ?)");
+        Database::execute(
+            "INSERT INTO users (full_name, email, password, phone) VALUES (?, ?, ?, ?)",
+            [$fullName, $email, $hashedPassword, $phone],
+            'ssss'
+        );
         
-        if (!$stmt) {
-            throw new Exception("Prepare failed: " . $conn->error);
-        }
+        return ['success' => true, 'message' => 'Registration successful'];
         
-        $stmt->bind_param('ssss', $fullName, $email, $hashedPassword, $phone);
-        
-        if ($stmt->execute()) {
-            $stmt->close();
-            return ['success' => true, 'message' => 'Registration successful'];
-        } else {
-            $error = $stmt->error;
-            $stmt->close();
-            return ['success' => false, 'error' => 'Registration failed: ' . $error];
-        }
     } catch (Exception $e) {
         return ['success' => false, 'error' => 'Registration failed. Please try again.'];
     }
 }
 
+/**
+ * Logout user
+ */
 function userLogout() {
     session_destroy();
     require_once __DIR__ . '/../core/router.php';
     redirect('public.home');
 }
 
+/**
+ * Require user login (redirect if not logged in)
+ */
 function requireUserLogin() {
     if (!isUserLoggedIn()) {
         require_once __DIR__ . '/../core/database.php';
@@ -82,6 +103,9 @@ function requireUserLogin() {
     }
 }
 
+/**
+ * Get current user info from session
+ */
 function getCurrentUser() {
     if (isUserLoggedIn()) {
         return [
@@ -94,16 +118,19 @@ function getCurrentUser() {
     return null;
 }
 
+/**
+ * Get user bookings
+ */
 function getUserBookings($userId, $limit = 10) {
     try {
-        return executePreparedQuery(
+        return Database::query(
             "SELECT b.id, b.show_date, b.show_time, b.seats_count, b.total_price, b.created_at,
                     m.title as movie_title, m.img as movie_img,
                     v.name as venue_name, s.screen_name, s.screen_type
              FROM bookings b
-             JOIN movies m ON m.id = b.movie_id
-             JOIN venues v ON v.id = b.venue_id
-             JOIN screens s ON s.id = b.screen_id
+             LEFT JOIN movies m ON m.id = b.movie_id
+             LEFT JOIN venues v ON v.id = b.venue_id
+             LEFT JOIN screens s ON s.id = b.screen_id
              WHERE b.user_id = ?
              ORDER BY b.created_at DESC
              LIMIT ?",
@@ -114,4 +141,3 @@ function getUserBookings($userId, $limit = 10) {
         return [];
     }
 }
-?>

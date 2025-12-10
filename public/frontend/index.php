@@ -2,9 +2,14 @@
 ini_set('display_errors', 1);
 error_reporting(E_ALL);
 
-require __DIR__ . '/../../app/config/database.php';
-require __DIR__ . '/../../app/core/router.php';
-require __DIR__ . '/../../app/auth/user_auth.php';
+// Flag to indicate pages are loaded via index.php (header/footer handled here)
+define('LOADED_VIA_INDEX', true);
+
+require_once __DIR__ . '/../../app/config/database.php';
+require_once __DIR__ . '/../../app/core/router.php';
+require_once __DIR__ . '/../../app/core/database.php';
+require_once __DIR__ . '/../../app/auth/user_auth.php';
+require_once __DIR__ . '/../../app/classes/autoload.php';
 
 $PAGES_DIR    = __DIR__ . '/pages';
 $PARTIALS_DIR = __DIR__ . '/partials';

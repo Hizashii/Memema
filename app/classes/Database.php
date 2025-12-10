@@ -1,7 +1,9 @@
 <?php
 /**
  * Database Class
- * Handles all database operations using OOP
+ * 
+ * Singleton pattern for database connection management.
+ * All database operations should go through this class.
  */
 class Database {
     private static $connection = null;
@@ -11,7 +13,14 @@ class Database {
      */
     public static function getConnection() {
         if (self::$connection === null) {
-            require_once __DIR__ . '/../config/database.php';
+            // Load config if constants not defined
+            if (!defined('DB_HOST')) {
+                if (!defined('CINEMA_APP')) {
+                    define('CINEMA_APP', true);
+                }
+                require_once __DIR__ . '/../config/database.php';
+            }
+            
             mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
             self::$connection = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
             self::$connection->set_charset('utf8mb4');
@@ -20,7 +29,7 @@ class Database {
     }
     
     /**
-     * Execute a query and return results
+     * Execute a SELECT query and return all results
      */
     public static function query($sql, $params = [], $types = '') {
         $conn = self::getConnection();
@@ -36,32 +45,32 @@ class Database {
                 $data[] = $row;
             }
             return $data;
-        } else {
-            $stmt = $conn->prepare($sql);
-            if (!$stmt) {
-                throw new Exception("Prepare failed: " . $conn->error);
-            }
-            
-            if (!empty($types)) {
-                $stmt->bind_param($types, ...$params);
-            }
-            
-            if (!$stmt->execute()) {
-                throw new Exception("Execute failed: " . $stmt->error);
-            }
-            
-            $result = $stmt->get_result();
-            $data = [];
-            
-            if ($result) {
-                while ($row = $result->fetch_assoc()) {
-                    $data[] = $row;
-                }
-            }
-            
-            $stmt->close();
-            return $data;
         }
+        
+        $stmt = $conn->prepare($sql);
+        if (!$stmt) {
+            throw new Exception("Prepare failed: " . $conn->error);
+        }
+        
+        if (!empty($types)) {
+            $stmt->bind_param($types, ...$params);
+        }
+        
+        if (!$stmt->execute()) {
+            throw new Exception("Execute failed: " . $stmt->error);
+        }
+        
+        $result = $stmt->get_result();
+        $data = [];
+        
+        if ($result) {
+            while ($row = $result->fetch_assoc()) {
+                $data[] = $row;
+            }
+        }
+        
+        $stmt->close();
+        return $data;
     }
     
     /**
@@ -99,6 +108,58 @@ class Database {
     }
     
     /**
+     * Get count from a table
+     */
+    public static function count($table, $where = '', $params = [], $types = '') {
+        $sql = "SELECT COUNT(*) as count FROM " . self::escapeIdentifier($table);
+        if (!empty($where)) {
+            $sql .= " WHERE " . $where;
+        }
+        $result = self::queryOne($sql, $params, $types);
+        return (int)($result['count'] ?? 0);
+    }
+    
+    /**
+     * Get sum from a table column
+     */
+    public static function sum($table, $column, $where = '', $params = [], $types = '') {
+        $sql = "SELECT SUM(" . self::escapeIdentifier($column) . ") as total FROM " . self::escapeIdentifier($table);
+        if (!empty($where)) {
+            $sql .= " WHERE " . $where;
+        }
+        $result = self::queryOne($sql, $params, $types);
+        return (float)($result['total'] ?? 0);
+    }
+    
+    /**
+     * Escape table/column identifiers
+     */
+    private static function escapeIdentifier($identifier) {
+        return '`' . str_replace('`', '``', $identifier) . '`';
+    }
+    
+    /**
+     * Begin a transaction
+     */
+    public static function beginTransaction() {
+        self::getConnection()->begin_transaction();
+    }
+    
+    /**
+     * Commit a transaction
+     */
+    public static function commit() {
+        self::getConnection()->commit();
+    }
+    
+    /**
+     * Rollback a transaction
+     */
+    public static function rollback() {
+        self::getConnection()->rollback();
+    }
+    
+    /**
      * Close database connection
      */
     public static function close() {
@@ -108,4 +169,3 @@ class Database {
         }
     }
 }
-

@@ -10,8 +10,10 @@ if (!defined('CINEMA_APP')) {
     die('Direct access not allowed');
 }
 
-// Load environment configuration
-require_once __DIR__ . '/env.php';
+// Ensure secrets are loaded
+if (!defined('APP_SECRET_KEY')) {
+    require_once __DIR__ . '/secrets.php';
+}
 
 // ===========================================
 // SESSION SECURITY
@@ -23,11 +25,11 @@ require_once __DIR__ . '/env.php';
 function initSecureSession() {
     if (session_status() === PHP_SESSION_NONE) {
         // Secure session settings
-        ini_set('session.cookie_httponly', Env::get('SESSION_HTTPONLY', true) ? 1 : 0);
-        ini_set('session.cookie_secure', Env::get('SESSION_SECURE', false) ? 1 : 0);
+        ini_set('session.cookie_httponly', defined('SESSION_HTTPONLY') && SESSION_HTTPONLY ? 1 : 0);
+        ini_set('session.cookie_secure', defined('SESSION_SECURE') && SESSION_SECURE ? 1 : 0);
         ini_set('session.use_strict_mode', 1);
         ini_set('session.cookie_samesite', 'Strict');
-        ini_set('session.gc_maxlifetime', Env::get('SESSION_LIFETIME', 7200));
+        ini_set('session.gc_maxlifetime', defined('SESSION_LIFETIME') ? SESSION_LIFETIME : 7200);
         
         session_start();
         
@@ -107,7 +109,7 @@ function sanitizeFilename($filename) {
 function generateCSRFToken() {
     initSecureSession();
     
-    $lifetime = Env::get('CSRF_TOKEN_LIFETIME', 3600);
+    $lifetime = defined('CSRF_TOKEN_LIFETIME') ? CSRF_TOKEN_LIFETIME : 3600;
     
     // Check if token exists and is still valid
     if (!isset($_SESSION['csrf_token']) || 
@@ -143,6 +145,13 @@ function csrfField() {
 }
 
 /**
+ * Get CSRF token for JavaScript/AJAX use
+ */
+function getCSRFToken() {
+    return generateCSRFToken();
+}
+
+/**
  * Validate CSRF token from request
  * Call this at the start of POST handlers
  */
@@ -166,8 +175,8 @@ function validateCSRF() {
 function checkRateLimit($key, $max_attempts = null, $time_window = null) {
     initSecureSession();
     
-    $max_attempts = $max_attempts ?? Env::get('RATE_LIMIT_MAX_ATTEMPTS', 10);
-    $time_window = $time_window ?? Env::get('RATE_LIMIT_WINDOW', 300);
+    $max_attempts = $max_attempts ?? (defined('RATE_LIMIT_MAX_ATTEMPTS') ? RATE_LIMIT_MAX_ATTEMPTS : 10);
+    $time_window = $time_window ?? (defined('RATE_LIMIT_WINDOW') ? RATE_LIMIT_WINDOW : 300);
     
     $now = time();
     $rate_key = "rate_limit_$key";
@@ -197,7 +206,7 @@ function checkRateLimit($key, $max_attempts = null, $time_window = null) {
 function getRateLimitRemaining($key, $max_attempts = null) {
     initSecureSession();
     
-    $max_attempts = $max_attempts ?? Env::get('RATE_LIMIT_MAX_ATTEMPTS', 10);
+    $max_attempts = $max_attempts ?? (defined('RATE_LIMIT_MAX_ATTEMPTS') ? RATE_LIMIT_MAX_ATTEMPTS : 10);
     $rate_key = "rate_limit_$key";
     
     if (!isset($_SESSION[$rate_key])) {
@@ -237,6 +246,20 @@ function passwordNeedsRehash($hash) {
 // ===========================================
 
 /**
+ * Check if running in production
+ */
+function isProduction() {
+    return defined('APP_ENV') && APP_ENV === 'production';
+}
+
+/**
+ * Check if debug mode is enabled
+ */
+function isDebug() {
+    return defined('APP_DEBUG') && APP_DEBUG === true;
+}
+
+/**
  * Set security headers
  * Call this at the start of your page
  */
@@ -254,12 +277,12 @@ function setSecurityHeaders() {
     header('Referrer-Policy: strict-origin-when-cross-origin');
     
     // Content Security Policy (adjust as needed)
-    if (Env::isProduction()) {
+    if (isProduction()) {
         header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com; img-src 'self' data:; font-src 'self' https://cdnjs.cloudflare.com;");
     }
     
     // HTTPS enforcement in production
-    if (Env::isProduction() && Env::get('SESSION_SECURE', true)) {
+    if (isProduction() && defined('SESSION_SECURE') && SESSION_SECURE) {
         header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
     }
 }
@@ -272,7 +295,7 @@ function setSecurityHeaders() {
  * Configure error handling based on environment
  */
 function configureErrorHandling() {
-    if (Env::isDebug()) {
+    if (isDebug()) {
         ini_set('display_errors', 1);
         error_reporting(E_ALL);
     } else {
@@ -291,7 +314,7 @@ function configureErrorHandling() {
  * Encrypt data
  */
 function encryptData($data) {
-    $key = Env::get('APP_SECRET_KEY');
+    $key = defined('APP_SECRET_KEY') ? APP_SECRET_KEY : 'fallback_key_not_secure';
     if (strlen($key) < 32) {
         $key = hash('sha256', $key, true);
     } else {
@@ -308,7 +331,7 @@ function encryptData($data) {
  * Decrypt data
  */
 function decryptData($encryptedData) {
-    $key = Env::get('APP_SECRET_KEY');
+    $key = defined('APP_SECRET_KEY') ? APP_SECRET_KEY : 'fallback_key_not_secure';
     if (strlen($key) < 32) {
         $key = hash('sha256', $key, true);
     } else {

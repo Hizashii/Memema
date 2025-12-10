@@ -3,7 +3,8 @@ require_once __DIR__ . '/Database.php';
 
 /**
  * Movie Class
- * Handles movie CRUD operations
+ * 
+ * Handles movie CRUD operations with genres.
  */
 class Movie {
     private $id;
@@ -21,16 +22,22 @@ class Movie {
             $this->durationMinutes = $data['duration_minutes'] ?? null;
             $this->rating = $data['rating'] ?? null;
             $this->genres = $data['genres'] ?? [];
+            
+            // Ensure genres is an array of strings
+            if (!empty($this->genres)) {
+                $this->genres = array_filter(array_map(function($g) {
+                    return is_array($g) ? ($g['genre'] ?? '') : trim($g);
+                }, $this->genres));
+            }
         }
     }
     
     /**
-     * Get all movies
+     * Get all movies with genres
      */
     public static function getAll() {
         $movies = Database::query("SELECT * FROM movies ORDER BY id DESC");
         
-        // Get genres for each movie
         foreach ($movies as &$movie) {
             $movie['genres'] = self::getGenres($movie['id']);
         }
@@ -39,7 +46,7 @@ class Movie {
     }
     
     /**
-     * Get movie by ID
+     * Get movie by ID with genres
      */
     public static function getById($id) {
         $movie = Database::queryOne("SELECT * FROM movies WHERE id = ?", [$id], 'i');
@@ -50,7 +57,7 @@ class Movie {
     }
     
     /**
-     * Get genres for a movie
+     * Get genres for a movie (returns array of genre strings)
      */
     public static function getGenres($movieId) {
         $genres = Database::query(
@@ -72,7 +79,6 @@ class Movie {
             'ssid'
         );
         
-        // Save genres
         if (!empty($this->genres)) {
             $this->saveGenres();
         }
@@ -95,7 +101,6 @@ class Movie {
             'ssidi'
         );
         
-        // Update genres
         $this->saveGenres();
         
         return true;
@@ -105,7 +110,6 @@ class Movie {
      * Delete movie
      */
     public static function delete($id) {
-        // Genres will be deleted automatically due to CASCADE
         return Database::execute("DELETE FROM movies WHERE id = ?", [$id], 'i');
     }
     
@@ -118,13 +122,16 @@ class Movie {
         
         // Insert new genres
         if (!empty($this->genres)) {
-            $conn = Database::getConnection();
-            $stmt = $conn->prepare("INSERT INTO movie_genres (movie_id, genre) VALUES (?, ?)");
             foreach ($this->genres as $genre) {
-                $stmt->bind_param('is', $this->id, $genre);
-                $stmt->execute();
+                $genre = trim($genre);
+                if (!empty($genre)) {
+                    Database::execute(
+                        "INSERT INTO movie_genres (movie_id, genre) VALUES (?, ?)",
+                        [$this->id, $genre],
+                        'is'
+                    );
+                }
             }
-            $stmt->close();
         }
     }
     
@@ -138,7 +145,6 @@ class Movie {
     public function setDurationMinutes($duration) { $this->durationMinutes = $duration; }
     public function getRating() { return $this->rating; }
     public function setRating($rating) { $this->rating = $rating; }
-    public function getGenres() { return $this->genres; }
+    public function getMovieGenres() { return $this->genres; }
     public function setGenres($genres) { $this->genres = is_array($genres) ? $genres : [$genres]; }
 }
-

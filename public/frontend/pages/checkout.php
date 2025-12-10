@@ -1,9 +1,12 @@
-<?php include dirname(__DIR__) . '/partials/header.php'; ?>
-
 <?php
-require_once __DIR__ . '/../../../app/config/database.php';
-require_once __DIR__ . '/../../../app/config/security.php';
+require_once __DIR__ . '/../../../app/classes/autoload.php';
 require_once __DIR__ . '/../../../app/core/database.php';
+require_once __DIR__ . '/../../../app/config/security.php';
+
+// Include header only when accessed directly (not via index.php)
+if (!defined('LOADED_VIA_INDEX')) {
+    include dirname(__DIR__) . '/partials/header.php';
+}
 
 $movieId = validateInt($_GET['movie_id'] ?? 0, 1);
 $venueId = validateInt($_GET['venue_id'] ?? 0, 1);
@@ -17,9 +20,9 @@ $venue = null;
 $screen = null;
 
 try {
-    $movie = getMovie($movieId)[0] ?? null;
-    $venue = $venueId ? getVenue($venueId)[0] : null;
-    $screen = $screenId ? getScreen($screenId)[0] : null;
+    $movie = $movieId ? Movie::getById($movieId) : null;
+    $venue = $venueId ? Venue::getById($venueId) : null;
+    $screen = $screenId ? Screen::getById($screenId) : null;
 } catch (Exception $e) {
     $error = "Unable to load booking information. Please try again.";
 }
@@ -152,4 +155,4 @@ $total = count($selectedSeats) * $pricePerSeat;
   <?php endif; ?>
 </main>
 
-<?php include dirname(__DIR__) . '/partials/footer.php'; ?>
+<?php if (!defined('LOADED_VIA_INDEX')) { include dirname(__DIR__) . '/partials/footer.php'; } ?>

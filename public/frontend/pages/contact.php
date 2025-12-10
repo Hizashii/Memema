@@ -1,12 +1,22 @@
-<?php include dirname(__DIR__) . '/partials/header.php'; ?>
-
-<?php
-require_once __DIR__ . '/../../../app/config/database.php';
+<?php 
+// Start session and load security for CSRF
+if (!defined('CINEMA_APP')) {
+    define('CINEMA_APP', true);
+}
+require_once __DIR__ . '/../../../app/config/security.php';
+require_once __DIR__ . '/../../../app/classes/autoload.php';
 require_once __DIR__ . '/../../../app/core/database.php';
 
+// Generate CSRF token
+$csrfToken = generateCSRFToken();
+
+// Include header only when accessed directly (not via index.php)
+if (!defined('LOADED_VIA_INDEX')) {
+    include dirname(__DIR__) . '/partials/header.php';
+}
+
 try {
-    $info = executeQuery("SELECT phone, email, address FROM contact_info LIMIT 1");
-    $contact = $info[0] ?? ['phone' => '', 'email' => '', 'address' => ''];
+    $contact = ContactMessage::getContactInfo();
 } catch (Exception $e) {
     $contact = ['phone' => '', 'email' => '', 'address' => ''];
     $error = "Unable to load contact information. Please try again later.";
@@ -59,6 +69,9 @@ try {
       <div class="bg-white rounded-xl border shadow-sm p-8">
         <h2 class="text-2xl font-bold text-gray-800 mb-6">Send us a Message</h2>
         <form id="contactForm" class="space-y-6">
+          <!-- CSRF Token -->
+          <input type="hidden" name="csrf_token" id="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
+          
           <div>
             <label for="name" class="block text-sm font-medium text-gray-700 mb-2">Full Name *</label>
             <input type="text" id="name" name="name" required
@@ -130,6 +143,10 @@ try {
         successMessage.classList.remove('hidden');
         messageContainer.classList.remove('hidden');
         this.reset();
+        // Update CSRF token with new one from server
+        if (result.new_csrf_token) {
+          document.getElementById('csrf_token').value = result.new_csrf_token;
+        }
       } else {
         if (result.errors) {
           errorText.textContent = result.errors.join(', ');
@@ -148,4 +165,4 @@ try {
   </script>
 </main>
 
-<?php include dirname(__DIR__) . '/partials/footer.php'; ?>
+<?php if (!defined('LOADED_VIA_INDEX')) { include dirname(__DIR__) . '/partials/footer.php'; } ?>

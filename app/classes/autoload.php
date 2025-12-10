@@ -15,7 +15,9 @@ require_once __DIR__ . '/Database.php';
 require_once __DIR__ . '/ImageUpload.php';
 require_once __DIR__ . '/Movie.php';
 require_once __DIR__ . '/Venue.php';
+require_once __DIR__ . '/Screen.php';
 require_once __DIR__ . '/News.php';
 require_once __DIR__ . '/Booking.php';
 require_once __DIR__ . '/User.php';
+require_once __DIR__ . '/ContactMessage.php';
 

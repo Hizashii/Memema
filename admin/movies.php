@@ -1,103 +1,75 @@
 <?php
+/**
+ * Movies Management - Admin Panel
+ * Uses OOP Movie class for all database operations
+ */
 require_once __DIR__ . '/../app/auth/admin_auth.php';
 require_once __DIR__ . '/../app/config/database.php';
 require_once __DIR__ . '/../app/config/security.php';
+require_once __DIR__ . '/../app/classes/Database.php';
+require_once __DIR__ . '/../app/classes/Movie.php';
 require_once __DIR__ . '/../app/core/database.php';
 require_once __DIR__ . '/../app/core/router.php';
 
-// Set security headers
 setSecurityHeaders();
-
 requireAdminLogin();
 
-// Check for flash messages from redirect
 $message = $_SESSION['flash_message'] ?? '';
 $error = $_SESSION['flash_error'] ?? '';
 unset($_SESSION['flash_message'], $_SESSION['flash_error']);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // Validate CSRF token
     validateCSRF();
-    
     $action = $_POST['action'] ?? '';
     
     try {
         if ($action === 'create') {
-            $title = trim($_POST['title'] ?? '');
-            $img = trim($_POST['img'] ?? '');
-            $duration_minutes = (int)($_POST['duration_minutes'] ?? 0);
-            $rating = (float)($_POST['rating'] ?? 0);
-            $genres = $_POST['genres'] ?? [];
+            $movie = new Movie([
+                'title' => trim($_POST['title'] ?? ''),
+                'img' => trim($_POST['img'] ?? ''),
+                'duration_minutes' => (int)($_POST['duration_minutes'] ?? 0),
+                'rating' => (float)($_POST['rating'] ?? 0),
+                'genres' => $_POST['genres'] ?? []
+            ]);
             
-            if (empty($title) || empty($img) || $duration_minutes <= 0) {
+            if (empty($movie->getTitle()) || empty($movie->getImg()) || $movie->getDurationMinutes() <= 0) {
                 throw new Exception('Please fill in all required fields.');
             }
             
-            // Use executeInsert to get the new movie ID
-            $movie_id = executeInsert(
-                "INSERT INTO movies (title, img, duration_minutes, rating) VALUES (?, ?, ?, ?)",
-                [$title, $img, $duration_minutes, $rating],
-                'ssid'
-            );
-            
-            // Now insert genres with the correct movie_id
-            foreach ($genres as $genre) {
-                if (!empty(trim($genre))) {
-                    executePreparedQuery(
-                        "INSERT INTO movie_genres (movie_id, genre) VALUES (?, ?)",
-                        [$movie_id, trim($genre)],
-                        'is'
-                    );
-                }
-            }
-            
+            $movie->create();
             $_SESSION['flash_message'] = 'Movie created successfully!';
             
         } elseif ($action === 'update') {
             $id = (int)($_POST['id'] ?? 0);
-            $title = trim($_POST['title'] ?? '');
-            $img = trim($_POST['img'] ?? '');
-            $duration_minutes = (int)($_POST['duration_minutes'] ?? 0);
-            $rating = (float)($_POST['rating'] ?? 0);
-            $genres = $_POST['genres'] ?? [];
+            if ($id <= 0) throw new Exception('Invalid movie ID.');
             
-            if ($id <= 0 || empty($title) || empty($img) || $duration_minutes <= 0) {
+            $existingMovie = Movie::getById($id);
+            if (!$existingMovie) throw new Exception('Movie not found.');
+            
+            $movie = new Movie([
+                'id' => $id,
+                'title' => trim($_POST['title'] ?? ''),
+                'img' => trim($_POST['img'] ?? ''),
+                'duration_minutes' => (int)($_POST['duration_minutes'] ?? 0),
+                'rating' => (float)($_POST['rating'] ?? 0),
+                'genres' => $_POST['genres'] ?? []
+            ]);
+            
+            if (empty($movie->getTitle()) || empty($movie->getImg()) || $movie->getDurationMinutes() <= 0) {
                 throw new Exception('Please fill in all required fields.');
             }
             
-            executePreparedQuery(
-                "UPDATE movies SET title = ?, img = ?, duration_minutes = ?, rating = ? WHERE id = ?",
-                [$title, $img, $duration_minutes, $rating, $id],
-                'ssidi'
-            );
-            
-            executePreparedQuery("DELETE FROM movie_genres WHERE movie_id = ?", [$id], 'i');
-            
-            foreach ($genres as $genre) {
-                if (!empty(trim($genre))) {
-                    executePreparedQuery(
-                        "INSERT INTO movie_genres (movie_id, genre) VALUES (?, ?)",
-                        [$id, trim($genre)],
-                        'is'
-                    );
-                }
-            }
-            
+            $movie->update();
             $_SESSION['flash_message'] = 'Movie updated successfully!';
             
         } elseif ($action === 'delete') {
             $id = (int)($_POST['id'] ?? 0);
+            if ($id <= 0) throw new Exception('Invalid movie ID.');
             
-            if ($id <= 0) {
-                throw new Exception('Invalid movie ID.');
-            }
-            
-            executePreparedQuery("DELETE FROM movies WHERE id = ?", [$id], 'i');
-            
+            Movie::delete($id);
             $_SESSION['flash_message'] = 'Movie deleted successfully!';
         }
         
-        // Redirect to prevent duplicate submissions on refresh (PRG pattern)
         header('Location: ' . $_SERVER['REQUEST_URI']);
         exit;
         
@@ -109,16 +81,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 try {
-    $movies = executeQuery("SELECT * FROM movies ORDER BY id DESC");
-    $all_genres = executeQuery("SELECT DISTINCT genre FROM movie_genres ORDER BY genre");
-    
-    foreach ($movies as &$movie) {
-        $movie['genres'] = executePreparedQuery(
-            "SELECT genre FROM movie_genres WHERE movie_id = ?",
-            [$movie['id']],
-            'i'
-        );
-    }
+    $movies = Movie::getAll();
+    $all_genres = Database::query("SELECT DISTINCT genre FROM movie_genres ORDER BY genre");
 } catch (Exception $e) {
     $movies = [];
     $all_genres = [];
@@ -137,73 +101,11 @@ $admin = getAdminInfo();
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body class="bg-gray-100">
-    <!-- Navigation -->
-    <nav class="bg-white shadow-sm border-b">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex justify-between h-16">
-                <div class="flex items-center">
-                    <div class="flex-shrink-0 flex items-center">
-                        <i class="fas fa-film text-purple-700 text-2xl mr-3"></i>
-                        <span class="text-xl font-bold text-gray-900">CinemaBook Admin</span>
-                    </div>
-                </div>
-                <div class="flex items-center space-x-4">
-                    <span class="text-gray-700">Welcome, <?= htmlspecialchars($admin['username']) ?></span>
-                    <a href="<?= route('admin.logout') ?>" 
-                       class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm">
-                        <i class="fas fa-sign-out-alt mr-1"></i>
-                        Logout
-                    </a>
-                </div>
-            </div>
-        </div>
-    </nav>
+    <?php include __DIR__ . '/partials/header.php'; ?>
 
     <div class="flex">
-        <!-- Sidebar -->
-        <div class="w-64 bg-white shadow-sm min-h-screen">
-            <div class="p-4">
-                <nav class="space-y-2">
-                    <a href="<?= route('admin.dashboard') ?>" 
-                       class="flex items-center px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-md">
-                        <i class="fas fa-tachometer-alt mr-3"></i>
-                        Dashboard
-                    </a>
-                    <a href="<?= route('admin.movies') ?>" 
-                       class="flex items-center px-4 py-2 text-sm font-medium text-white bg-purple-700 rounded-md">
-                        <i class="fas fa-film mr-3"></i>
-                        Movies
-                    </a>
-                    <a href="<?= route('admin.news') ?>" 
-                       class="flex items-center px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-md">
-                        <i class="fas fa-newspaper mr-3"></i>
-                        News
-                    </a>
-                    <a href="<?= route('admin.venues') ?>" 
-                       class="flex items-center px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-md">
-                        <i class="fas fa-building mr-3"></i>
-                        Venues
-                    </a>
-                    <a href="<?= route('admin.bookings') ?>" 
-                       class="flex items-center px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-md">
-                        <i class="fas fa-ticket-alt mr-3"></i>
-                        Bookings
-                    </a>
-                    <a href="<?= route('admin.users') ?>" 
-                       class="flex items-center px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-md">
-                        <i class="fas fa-users mr-3"></i>
-                        Users
-                    </a>
-                    <a href="<?= route('public.home') ?>" 
-                       class="flex items-center px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-md">
-                        <i class="fas fa-external-link-alt mr-3"></i>
-                        View Website
-                    </a>
-                </nav>
-            </div>
-        </div>
+        <?php $currentPage = 'movies'; include __DIR__ . '/partials/sidebar.php'; ?>
 
-        <!-- Main Content -->
         <div class="flex-1 p-8">
             <div class="mb-8">
                 <div class="flex justify-between items-center">
@@ -211,75 +113,65 @@ $admin = getAdminInfo();
                         <h1 class="text-3xl font-bold text-gray-900">Movies Management</h1>
                         <p class="text-gray-600">Manage your movie catalog</p>
                     </div>
-                    <button onclick="openModal('create')" 
-                            class="bg-purple-700 hover:bg-purple-800 text-white px-4 py-2 rounded-md">
-                        <i class="fas fa-plus mr-2"></i>
-                        Add Movie
+                    <button onclick="openModal('create')" class="bg-purple-700 hover:bg-purple-800 text-white px-4 py-2 rounded-md">
+                        <i class="fas fa-plus mr-2"></i>Add Movie
                     </button>
                 </div>
             </div>
 
-            <!-- Messages -->
             <?php if ($message): ?>
                 <div class="mb-4 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-md">
-                    <i class="fas fa-check-circle mr-2"></i>
-                    <?= htmlspecialchars($message) ?>
+                    <i class="fas fa-check-circle mr-2"></i><?= htmlspecialchars($message) ?>
                 </div>
             <?php endif; ?>
 
             <?php if ($error): ?>
                 <div class="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md">
-                    <i class="fas fa-exclamation-circle mr-2"></i>
-                    <?= htmlspecialchars($error) ?>
+                    <i class="fas fa-exclamation-circle mr-2"></i><?= htmlspecialchars($error) ?>
                 </div>
             <?php endif; ?>
 
-            <!-- Movies Table -->
             <div class="bg-white shadow rounded-lg overflow-hidden">
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50">
                         <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Poster</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Duration</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rating</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Genres</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Poster</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Title</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Duration</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rating</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Genres</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                         </tr>
                     </thead>
                     <tbody class="bg-white divide-y divide-gray-200">
                         <?php foreach ($movies as $movie): ?>
                             <tr>
                                 <td class="px-6 py-4 whitespace-nowrap">
-                                    <img src="<?= getImagePath($movie['img']) ?>" 
-                                         alt="<?= htmlspecialchars($movie['title']) ?>" 
-                                         class="h-16 w-12 object-cover rounded">
+                                    <img src="<?= getImagePath($movie['img']) ?>" alt="<?= htmlspecialchars($movie['title']) ?>" class="h-16 w-12 object-cover rounded">
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <div class="text-sm font-medium text-gray-900"><?= htmlspecialchars($movie['title']) ?></div>
                                 </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                    <?= $movie['duration_minutes'] ?> min
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                    <?= number_format($movie['rating'], 1) ?>
-                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= $movie['duration_minutes'] ?> min</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= number_format($movie['rating'], 1) ?></td>
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <div class="flex flex-wrap gap-1">
                                         <?php foreach ($movie['genres'] as $genre): ?>
                                             <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                                                <?= htmlspecialchars($genre['genre']) ?>
+                                                <?= htmlspecialchars($genre) ?>
                                             </span>
                                         <?php endforeach; ?>
                                     </div>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                    <button onclick="openModal('update', <?= htmlspecialchars(json_encode($movie)) ?>)" 
-                                            class="text-indigo-600 hover:text-indigo-900 mr-3">
+                                    <?php 
+                                    $movieData = $movie;
+                                    $movieData['genres'] = array_map(fn($g) => ['genre' => $g], $movie['genres']);
+                                    ?>
+                                    <button onclick='openModal("update", <?= htmlspecialchars(json_encode($movieData)) ?>)' class="text-indigo-600 hover:text-indigo-900 mr-3">
                                         <i class="fas fa-edit"></i>
                                     </button>
-                                    <button onclick="deleteMovie(<?= $movie['id'] ?>)" 
-                                            class="text-red-600 hover:text-red-900">
+                                    <button onclick="deleteMovie(<?= $movie['id'] ?>)" class="text-red-600 hover:text-red-900">
                                         <i class="fas fa-trash"></i>
                                     </button>
                                 </td>
@@ -307,66 +199,42 @@ $admin = getAdminInfo();
                     <div class="px-6 py-4 space-y-4">
                         <div>
                             <label for="title" class="block text-sm font-medium text-gray-700">Title *</label>
-                            <input type="text" id="title" name="title" required
-                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500">
+                            <input type="text" id="title" name="title" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500">
                         </div>
                         
                         <div>
                             <label for="img" class="block text-sm font-medium text-gray-700">Movie Poster *</label>
                             <div class="mt-1 flex space-x-4">
-                                <input type="text" id="img" name="img" required
-                                       class="flex-1 border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500"
-                                       placeholder="./assets/img/movie.jpg">
-                                <button type="button" onclick="openFileUpload()" 
-                                        class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md text-sm">
-                                    <i class="fas fa-upload mr-1"></i>
-                                    Upload
+                                <input type="text" id="img" name="img" required class="flex-1 border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500" placeholder="./assets/img/movie.jpg">
+                                <button type="button" onclick="openFileUpload()" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md text-sm">
+                                    <i class="fas fa-upload mr-1"></i>Upload
                                 </button>
                             </div>
-                            <p class="mt-1 text-xs text-gray-500">Or upload an image file (JPG, PNG, GIF, WebP)</p>
                         </div>
                         
                         <div class="grid grid-cols-2 gap-4">
                             <div>
                                 <label for="duration_minutes" class="block text-sm font-medium text-gray-700">Duration (min) *</label>
-                                <input type="number" id="duration_minutes" name="duration_minutes" required min="1"
-                                       class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500">
+                                <input type="number" id="duration_minutes" name="duration_minutes" required min="1" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500">
                             </div>
-                            
                             <div>
                                 <label for="rating" class="block text-sm font-medium text-gray-700">Rating</label>
-                                <input type="number" id="rating" name="rating" step="0.1" min="0" max="5"
-                                       class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500">
+                                <input type="number" id="rating" name="rating" step="0.1" min="0" max="5" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500">
                             </div>
                         </div>
                         
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Genres</label>
-                            <div id="genresContainer">
-                                <div class="flex items-center space-x-2 mb-2">
-                                    <input type="text" name="genres[]" placeholder="Action"
-                                           class="flex-1 border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500">
-                                    <button type="button" onclick="removeGenre(this)" class="text-red-600">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
-                                </div>
-                            </div>
-                            <button type="button" onclick="addGenre()" 
-                                    class="text-purple-600 hover:text-purple-800 text-sm">
+                            <div id="genresContainer"></div>
+                            <button type="button" onclick="addGenre()" class="text-purple-600 hover:text-purple-800 text-sm">
                                 <i class="fas fa-plus mr-1"></i> Add Genre
                             </button>
                         </div>
                     </div>
                     
                     <div class="px-6 py-4 bg-gray-50 flex justify-end space-x-3">
-                        <button type="button" onclick="closeModal()" 
-                                class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">
-                            Cancel
-                        </button>
-                        <button type="submit" 
-                                class="px-4 py-2 bg-purple-700 text-white rounded-md hover:bg-purple-800">
-                            Save
-                        </button>
+                        <button type="button" onclick="closeModal()" class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">Cancel</button>
+                        <button type="submit" class="px-4 py-2 bg-purple-700 text-white rounded-md hover:bg-purple-800">Save</button>
                     </div>
                 </form>
             </div>
@@ -380,23 +248,15 @@ $admin = getAdminInfo();
                 <div class="px-6 py-4 border-b border-gray-200">
                     <h3 class="text-lg font-medium text-gray-900">Upload Image</h3>
                 </div>
-                
                 <div class="px-6 py-4">
                     <form id="uploadForm" enctype="multipart/form-data">
                         <div class="mb-4">
                             <label for="imageFile" class="block text-sm font-medium text-gray-700 mb-2">Select Image</label>
-                            <input type="file" id="imageFile" name="image" accept="image/*" required
-                                   class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100">
+                            <input type="file" id="imageFile" name="image" accept="image/*" required class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100">
                         </div>
                         <div class="flex justify-end space-x-3">
-                            <button type="button" onclick="closeUploadModal()" 
-                                    class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">
-                                Cancel
-                            </button>
-                            <button type="submit" 
-                                    class="px-4 py-2 bg-purple-700 text-white rounded-md hover:bg-purple-800">
-                                Upload
-                            </button>
+                            <button type="button" onclick="closeUploadModal()" class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">Cancel</button>
+                            <button type="submit" class="px-4 py-2 bg-purple-700 text-white rounded-md hover:bg-purple-800">Upload</button>
                         </div>
                     </form>
                 </div>
@@ -404,7 +264,6 @@ $admin = getAdminInfo();
         </div>
     </div>
 
-    <!-- Delete Form -->
     <form id="deleteForm" method="POST" style="display: none;">
         <?= csrfField() ?>
         <input type="hidden" name="action" value="delete">
@@ -413,68 +272,41 @@ $admin = getAdminInfo();
 
     <script>
         function openModal(action, movie = null) {
-            const modal = document.getElementById('modal');
-            const form = document.getElementById('movieForm');
-            const formAction = document.getElementById('formAction');
-            const movieId = document.getElementById('movieId');
-            const modalTitle = document.getElementById('modalTitle');
-            
-            formAction.value = action;
+            document.getElementById('formAction').value = action;
             
             if (action === 'create') {
-                modalTitle.textContent = 'Add Movie';
-                form.reset();
-                movieId.value = '';
-                document.getElementById('genresContainer').innerHTML = `
-                    <div class="flex items-center space-x-2 mb-2">
-                        <input type="text" name="genres[]" placeholder="Action"
-                               class="flex-1 border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500">
-                        <button type="button" onclick="removeGenre(this)" class="text-red-600">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </div>
-                `;
+                document.getElementById('modalTitle').textContent = 'Add Movie';
+                document.getElementById('movieForm').reset();
+                document.getElementById('movieId').value = '';
+                document.getElementById('genresContainer').innerHTML = '';
+                addGenre();
             } else if (action === 'update' && movie) {
-                modalTitle.textContent = 'Edit Movie';
-                movieId.value = movie.id;
+                document.getElementById('modalTitle').textContent = 'Edit Movie';
+                document.getElementById('movieId').value = movie.id;
                 document.getElementById('title').value = movie.title;
                 document.getElementById('img').value = movie.img;
                 document.getElementById('duration_minutes').value = movie.duration_minutes;
                 document.getElementById('rating').value = movie.rating;
                 
-                const genresContainer = document.getElementById('genresContainer');
-                genresContainer.innerHTML = '';
-                movie.genres.forEach(genre => {
-                    addGenre(genre.genre);
-                });
-                if (movie.genres.length === 0) {
-                    addGenre();
-                }
+                document.getElementById('genresContainer').innerHTML = '';
+                movie.genres.forEach(genre => addGenre(genre.genre));
+                if (movie.genres.length === 0) addGenre();
             }
             
-            modal.classList.remove('hidden');
+            document.getElementById('modal').classList.remove('hidden');
         }
         
-        function closeModal() {
-            document.getElementById('modal').classList.add('hidden');
-        }
+        function closeModal() { document.getElementById('modal').classList.add('hidden'); }
         
         function addGenre(value = '') {
             const container = document.getElementById('genresContainer');
             const div = document.createElement('div');
             div.className = 'flex items-center space-x-2 mb-2';
             div.innerHTML = `
-                <input type="text" name="genres[]" placeholder="Action" value="${value}"
-                       class="flex-1 border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500">
-                <button type="button" onclick="removeGenre(this)" class="text-red-600">
-                    <i class="fas fa-trash"></i>
-                </button>
+                <input type="text" name="genres[]" placeholder="Action" value="${value}" class="flex-1 border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500">
+                <button type="button" onclick="this.parentElement.remove()" class="text-red-600"><i class="fas fa-trash"></i></button>
             `;
             container.appendChild(div);
-        }
-        
-        function removeGenre(button) {
-            button.parentElement.remove();
         }
         
         function deleteMovie(id) {
@@ -484,75 +316,33 @@ $admin = getAdminInfo();
             }
         }
         
-        document.getElementById('modal').addEventListener('click', function(e) {
-            if (e.target === this) {
-                closeModal();
-            }
-        });
+        document.getElementById('modal').addEventListener('click', e => { if (e.target.id === 'modal') closeModal(); });
         
-        function openFileUpload() {
-            document.getElementById('uploadModal').classList.remove('hidden');
-        }
-        
-        function closeUploadModal() {
-            document.getElementById('uploadModal').classList.add('hidden');
-            document.getElementById('uploadForm').reset();
-        }
+        function openFileUpload() { document.getElementById('uploadModal').classList.remove('hidden'); }
+        function closeUploadModal() { document.getElementById('uploadModal').classList.add('hidden'); document.getElementById('uploadForm').reset(); }
         
         document.getElementById('uploadForm').addEventListener('submit', function(e) {
             e.preventDefault();
-            
             const formData = new FormData(this);
-            const uploadButton = this.querySelector('button[type="submit"]');
-            const originalText = uploadButton.textContent;
+            const btn = this.querySelector('button[type="submit"]');
+            btn.textContent = 'Uploading...';
+            btn.disabled = true;
             
-            uploadButton.textContent = 'Uploading...';
-            uploadButton.disabled = true;
-            
-            fetch('<?= route('admin.upload') ?>', {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => {
-                // Check if response is ok
-                if (!response.ok) {
-                    throw new Error('HTTP error! status: ' + response.status);
-                }
-                // Get response text first to debug
-                return response.text();
-            })
-            .then(text => {
-                try {
-                    const data = JSON.parse(text);
-                    if (data.success) {
-                        // Use relative_path for database storage
-                        document.getElementById('img').value = data.relative_path || data.path;
-                        closeUploadModal();
-                        alert('Image uploaded successfully!');
-                    } else {
-                        alert('Upload failed: ' + (data.error || 'Unknown error'));
-                    }
-                } catch (e) {
-                    console.error('JSON Parse Error:', e);
-                    console.error('Response text:', text);
-                    alert('Upload failed: Invalid response from server. Check console for details.');
+            fetch('<?= route('admin.upload') ?>', { method: 'POST', body: formData })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    document.getElementById('img').value = data.relative_path || data.path;
+                    closeUploadModal();
+                } else {
+                    alert('Upload failed: ' + data.error);
                 }
             })
-            .catch(error => {
-                console.error('Upload Error:', error);
-                alert('Upload failed: ' + error.message);
-            })
-            .finally(() => {
-                uploadButton.textContent = originalText;
-                uploadButton.disabled = false;
-            });
+            .catch(err => alert('Upload failed: ' + err))
+            .finally(() => { btn.textContent = 'Upload'; btn.disabled = false; });
         });
         
-        document.getElementById('uploadModal').addEventListener('click', function(e) {
-            if (e.target === this) {
-                closeUploadModal();
-            }
-        });
+        document.getElementById('uploadModal').addEventListener('click', e => { if (e.target.id === 'uploadModal') closeUploadModal(); });
     </script>
 </body>
 </html>

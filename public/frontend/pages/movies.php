@@ -1,19 +1,16 @@
-<?php include dirname(__DIR__) . '/partials/header.php'; ?>
-
 <?php
-require_once __DIR__ . '/../../../app/config/database.php';
+require_once __DIR__ . '/../../../app/classes/autoload.php';
 require_once __DIR__ . '/../../../app/core/database.php';
 
+// Include header only when accessed directly (not via index.php)
+if (!defined('LOADED_VIA_INDEX')) {
+    include dirname(__DIR__) . '/partials/header.php';
+}
+
 try {
-    $movies = executeQuery("SELECT m.id, m.title, m.img, m.duration_minutes, m.rating FROM movies m ORDER BY m.id ASC");
-    $genres = executeQuery("SELECT movie_id, genre FROM movie_genres ORDER BY genre");
-    $movieGenres = [];
-    foreach ($genres as $g) {
-        $movieGenres[$g['movie_id']][] = $g['genre'];
-    }
+    $movies = Movie::getAll();
 } catch (Exception $e) {
     $movies = [];
-    $movieGenres = [];
     $error = "Unable to load movies. Please try again later.";
 }
 ?>
@@ -38,8 +35,8 @@ try {
             <h2 class="text-xl font-bold mb-3"><?= htmlspecialchars($movie['title']) ?></h2>
             
             <div class="flex flex-wrap gap-2 mb-4">
-              <?php if (isset($movieGenres[$movie['id']])): ?>
-                <?php foreach ($movieGenres[$movie['id']] as $genre): ?>
+              <?php if (!empty($movie['genres'])): ?>
+                <?php foreach ($movie['genres'] as $genre): ?>
                   <span class="px-2 py-1 bg-purple-100 text-purple-700 text-xs rounded-full">
                     <?= htmlspecialchars($genre) ?>
                   </span>
@@ -63,4 +60,4 @@ try {
   <?php endif; ?>
 </main>
 
-<?php include dirname(__DIR__) . '/partials/footer.php'; ?>
+<?php if (!defined('LOADED_VIA_INDEX')) { include dirname(__DIR__) . '/partials/footer.php'; } ?>

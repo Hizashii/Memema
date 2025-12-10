@@ -1,9 +1,12 @@
-<?php include dirname(__DIR__) . '/partials/header.php'; ?>
-
 <?php
-require_once __DIR__ . '/../../../app/config/database.php';
-require_once __DIR__ . '/../../../app/config/security.php';
+require_once __DIR__ . '/../../../app/classes/autoload.php';
 require_once __DIR__ . '/../../../app/core/database.php';
+require_once __DIR__ . '/../../../app/config/security.php';
+
+// Include header only when accessed directly (not via index.php)
+if (!defined('LOADED_VIA_INDEX')) {
+    include dirname(__DIR__) . '/partials/header.php';
+}
 
 $movie_id = validateInt($_GET['movie_id'] ?? 0, 1);
 $venue_id = validateInt($_GET['venue_id'] ?? 0, 1);
@@ -18,12 +21,12 @@ $occupied_seats = [];
 
 if ($movie_id && $venue_id && $screen_id) {
     try {
-        $movie = getMovie($movie_id)[0] ?? null;
-        $venue = getVenue($venue_id)[0] ?? null;
-        $screen = getScreen($screen_id)[0] ?? null;
+        $movie = Movie::getById($movie_id);
+        $venue = Venue::getById($venue_id);
+        $screen = Screen::getById($screen_id);
         
         if ($movie && $venue && $screen) {
-            $booked_seats = getBookedSeats($screen_id, $show_date, $show_time);
+            $booked_seats = Booking::getBookedSeats($screen_id, $show_date, $show_time);
             foreach ($booked_seats as $seat) {
                 $occupied_seats[$seat['seat_row'] . $seat['seat_number']] = true;
             }
@@ -242,4 +245,4 @@ document.getElementById('proceed-btn').addEventListener('click', function() {
 }
 </style>
 
-<?php include dirname(__DIR__) . '/partials/footer.php'; ?>
+<?php if (!defined('LOADED_VIA_INDEX')) { include dirname(__DIR__) . '/partials/footer.php'; } ?>

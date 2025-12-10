@@ -1,29 +1,82 @@
 # ===========================================
 # SENSITIVE FILES - NEVER COMMIT THESE
 # ===========================================
-app/config/admin_credentials.php
+
+# Secrets configuration (contains real credentials)
+app/config/secrets.php
+
+# Legacy environment files (if they exist)
 app/config/environment.php
+app/config/env.php
 .env
 *.env
+.env.*
 
 # ===========================================
-# UPLOADS (optional - uncomment if needed)
+# USER UPLOADED FILES (optional)
 # ===========================================
+# Uncomment the following line to ignore uploaded images
 # assets/img/img_*
 
 # ===========================================
-# IDE AND SYSTEM FILES
+# IDE AND EDITOR FILES
 # ===========================================
 .idea/
 .vscode/
 *.swp
 *.swo
-.DS_Store
-Thumbs.db
+*.sublime-project
+*.sublime-workspace
+.project
+.settings/
+*.iml
 
 # ===========================================
-# LOGS
+# SYSTEM FILES
+# ===========================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# ===========================================
+# LOGS AND DEBUGGING
 # ===========================================
 *.log
 logs/
+error_log
+debug.log
 
+# ===========================================
+# TEMPORARY FILES
+# ===========================================
+*.tmp
+*.temp
+*.bak
+*.cache
+tmp/
+temp/
+cache/
+
+# ===========================================
+# DEPENDENCY DIRECTORIES (if using Composer)
+# ===========================================
+/vendor/
+composer.lock
+
+# ===========================================
+# NODE MODULES (if using npm)
+# ===========================================
+node_modules/
+package-lock.json
+
+# ===========================================
+# PHP SPECIFIC
+# ===========================================
+*.phar
+.phpunit.result.cache
+phpunit.xml

@@ -1,10 +1,13 @@
-<?php include dirname(__DIR__) . '/partials/header.php'; ?>
-
-<?php
+<?php 
+// Load security first for CSRF protection
+if (!defined('CINEMA_APP')) {
+    define('CINEMA_APP', true);
+}
+require_once __DIR__ . '/../../../app/config/security.php';
 require_once __DIR__ . '/../../../app/auth/user_auth.php';
+require_once __DIR__ . '/../../../app/core/database.php';
 
 if (isUserLoggedIn()) {
-    require_once __DIR__ . '/../../../app/core/database.php';
     $base = getBasePath();
     header('Location: ' . $base . '/public/frontend/pages/profile.php');
     exit;
@@ -14,34 +17,48 @@ $error = '';
 $success = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $fullName = trim($_POST['full_name'] ?? '');
-    $email = trim($_POST['email'] ?? '');
-    $password = $_POST['password'] ?? '';
-    $confirmPassword = $_POST['confirm_password'] ?? '';
-    $phone = trim($_POST['phone'] ?? '');
-    
-    if (empty($fullName) || empty($email) || empty($password) || empty($confirmPassword)) {
-        $error = 'Please fill in all required fields';
-    } elseif ($password !== $confirmPassword) {
-        $error = 'Passwords do not match';
-    } elseif (strlen($password) < 6) {
-        $error = 'Password must be at least 6 characters long';
+    // Verify CSRF token
+    $csrfToken = $_POST['csrf_token'] ?? '';
+    if (!verifyCSRFToken($csrfToken)) {
+        $error = 'Security validation failed. Please refresh the page and try again.';
+    }
+    // Check rate limiting (max 3 registrations per hour)
+    elseif (!checkRateLimit('register_attempt', 3, 3600)) {
+        $error = 'Too many registration attempts. Please try again later.';
     } else {
-        $result = userRegister($fullName, $email, $password, $phone);
-        if ($result['success']) {
-            $success = $result['message'];
-            $loginResult = userLogin($email, $password);
-            if ($loginResult['success']) {
-                require_once __DIR__ . '/../../../app/core/database.php';
-                $base = getBasePath();
-                header('Location: ' . $base . '/public/frontend/pages/profile.php');
-                exit;
-            }
+        $fullName = trim($_POST['full_name'] ?? '');
+        $email = trim($_POST['email'] ?? '');
+        $password = $_POST['password'] ?? '';
+        $confirmPassword = $_POST['confirm_password'] ?? '';
+        $phone = trim($_POST['phone'] ?? '');
+        
+        if (empty($fullName) || empty($email) || empty($password) || empty($confirmPassword)) {
+            $error = 'Please fill in all required fields';
+        } elseif ($password !== $confirmPassword) {
+            $error = 'Passwords do not match';
+        } elseif (strlen($password) < 6) {
+            $error = 'Password must be at least 6 characters long';
+        } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $error = 'Please enter a valid email address';
         } else {
-            $error = $result['error'];
+            $result = userRegister($fullName, $email, $password, $phone);
+            if ($result['success']) {
+                $success = $result['message'];
+                $loginResult = userLogin($email, $password);
+                if ($loginResult['success']) {
+                    $base = getBasePath();
+                    header('Location: ' . $base . '/public/frontend/pages/profile.php');
+                    exit;
+                }
+            } else {
+                $error = $result['error'];
+            }
         }
     }
 }
+
+// Generate CSRF token
+$csrfToken = generateCSRFToken();
 ?>
 
 <main class="max-w-md mx-auto px-4 py-10">
@@ -66,6 +83,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <?php endif; ?>
 
     <form method="POST" class="space-y-6">
+      <!-- CSRF Token -->
+      <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
+      
       <div>
         <label for="full_name" class="block text-sm font-medium text-gray-700 mb-2">Full Name *</label>
         <input type="text" id="full_name" name="full_name" required
@@ -91,6 +111,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <label for="password" class="block text-sm font-medium text-gray-700 mb-2">Password *</label>
         <input type="password" id="password" name="password" required
                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+        <p class="mt-1 text-xs text-gray-500">Minimum 6 characters</p>
       </div>
       
       <div>

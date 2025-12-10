@@ -1,40 +1,43 @@
 <?php
+/**
+ * Bookings Management - Admin Panel
+ * Uses OOP Booking class for all database operations
+ */
 require_once __DIR__ . '/../app/auth/admin_auth.php';
 require_once __DIR__ . '/../app/config/database.php';
 require_once __DIR__ . '/../app/config/security.php';
+require_once __DIR__ . '/../app/classes/Database.php';
+require_once __DIR__ . '/../app/classes/Booking.php';
 require_once __DIR__ . '/../app/core/database.php';
 require_once __DIR__ . '/../app/core/router.php';
 
-// Set security headers
 setSecurityHeaders();
-
 requireAdminLogin();
 
-// Flash messages
 $message = $_SESSION['flash_message'] ?? '';
 $error = $_SESSION['flash_error'] ?? '';
 unset($_SESSION['flash_message'], $_SESSION['flash_error']);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // Validate CSRF token
     validateCSRF();
-    
     $action = $_POST['action'] ?? '';
     
     try {
         if ($action === 'delete') {
             $id = (int)($_POST['id'] ?? 0);
+            if ($id <= 0) throw new Exception('Invalid booking ID.');
             
-            if ($id <= 0) {
-                throw new Exception('Invalid booking ID.');
-            }
-            
-            executePreparedQuery("DELETE FROM bookings WHERE id = ?", [$id], 'i');
-            
-            $message = 'Booking deleted successfully!';
+            Booking::delete($id);
+            $_SESSION['flash_message'] = 'Booking deleted successfully!';
         }
+        
+        header('Location: ' . $_SERVER['REQUEST_URI']);
+        exit;
+        
     } catch (Exception $e) {
-        $error = $e->getMessage();
+        $_SESSION['flash_error'] = $e->getMessage();
+        header('Location: ' . $_SERVER['REQUEST_URI']);
+        exit;
     }
 }
 
@@ -42,62 +45,54 @@ $filter_movie = $_GET['movie'] ?? '';
 $filter_venue = $_GET['venue'] ?? '';
 $filter_date = $_GET['date'] ?? '';
 
-$where_conditions = [];
-$params = [];
-$types = '';
-
-if (!empty($filter_movie)) {
-    $where_conditions[] = "m.title LIKE ?";
-    $params[] = "%$filter_movie%";
-    $types .= 's';
-}
-
-if (!empty($filter_venue)) {
-    $where_conditions[] = "v.name LIKE ?";
-    $params[] = "%$filter_venue%";
-    $types .= 's';
-}
-
-if (!empty($filter_date)) {
-    $where_conditions[] = "b.show_date = ?";
-    $params[] = $filter_date;
-    $types .= 's';
-}
-
-$where_clause = !empty($where_conditions) ? 'WHERE ' . implode(' AND ', $where_conditions) : '';
-
 try {
-    $bookings = executePreparedQuery("
+    // Build query with filters
+    $where_conditions = [];
+    $params = [];
+    $types = '';
+    
+    if (!empty($filter_movie)) {
+        $where_conditions[] = "m.title LIKE ?";
+        $params[] = "%$filter_movie%";
+        $types .= 's';
+    }
+    
+    if (!empty($filter_venue)) {
+        $where_conditions[] = "v.name LIKE ?";
+        $params[] = "%$filter_venue%";
+        $types .= 's';
+    }
+    
+    if (!empty($filter_date)) {
+        $where_conditions[] = "b.show_date = ?";
+        $params[] = $filter_date;
+        $types .= 's';
+    }
+    
+    $where_clause = !empty($where_conditions) ? 'WHERE ' . implode(' AND ', $where_conditions) : '';
+    
+    $bookings = Database::query("
         SELECT b.*, m.title as movie_title, v.name as venue_name, s.screen_name,
                u.full_name as user_name, u.email as user_email
         FROM bookings b 
-        JOIN movies m ON b.movie_id = m.id 
-        JOIN venues v ON b.venue_id = v.id 
-        JOIN screens s ON b.screen_id = s.id
-        JOIN users u ON b.user_id = u.id
+        LEFT JOIN movies m ON b.movie_id = m.id 
+        LEFT JOIN venues v ON b.venue_id = v.id 
+        LEFT JOIN screens s ON b.screen_id = s.id
+        LEFT JOIN users u ON b.user_id = u.id
         $where_clause
         ORDER BY b.created_at DESC
     ", $params, $types);
     
     $stats = [
-        'total_bookings' => executeQuery("SELECT COUNT(*) as count FROM bookings")[0]['count'],
-        'total_revenue' => executeQuery("SELECT SUM(total_price) as total FROM bookings")[0]['total'] ?? 0,
-        'today_bookings' => executeQuery("SELECT COUNT(*) as count FROM bookings WHERE DATE(created_at) = CURDATE()")[0]['count'],
-        'today_revenue' => executeQuery("SELECT SUM(total_price) as total FROM bookings WHERE DATE(created_at) = CURDATE()")[0]['total'] ?? 0
+        'total_bookings' => Database::count('bookings'),
+        'total_revenue' => Database::sum('bookings', 'total_price'),
+        'today_bookings' => Database::count('bookings', 'DATE(created_at) = CURDATE()'),
+        'today_revenue' => Database::sum('bookings', 'total_price', 'DATE(created_at) = CURDATE()')
     ];
-    
-    $recent_bookings = executeQuery("
-        SELECT DATE(created_at) as date, COUNT(*) as count, SUM(total_price) as revenue
-        FROM bookings 
-        WHERE created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
-        GROUP BY DATE(created_at)
-        ORDER BY date ASC
-    ");
     
 } catch (Exception $e) {
     $bookings = [];
     $stats = ['total_bookings' => 0, 'total_revenue' => 0, 'today_bookings' => 0, 'today_revenue' => 0];
-    $recent_bookings = [];
     $error = "Unable to load bookings data.";
 }
 
@@ -111,159 +106,66 @@ $admin = getAdminInfo();
     <title>Bookings Management - CinemaBook Admin</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body class="bg-gray-100">
-    <!-- Navigation -->
-    <nav class="bg-white shadow-sm border-b">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex justify-between h-16">
-                <div class="flex items-center">
-                    <div class="flex-shrink-0 flex items-center">
-                        <i class="fas fa-film text-purple-700 text-2xl mr-3"></i>
-                        <span class="text-xl font-bold text-gray-900">CinemaBook Admin</span>
-                    </div>
-                </div>
-                <div class="flex items-center space-x-4">
-                    <span class="text-gray-700">Welcome, <?= htmlspecialchars($admin['username']) ?></span>
-                    <a href="<?= route('admin.logout') ?>" 
-                       class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm">
-                        <i class="fas fa-sign-out-alt mr-1"></i>
-                        Logout
-                    </a>
-                </div>
-            </div>
-        </div>
-    </nav>
+    <?php include __DIR__ . '/partials/header.php'; ?>
 
     <div class="flex">
-        <!-- Sidebar -->
-        <div class="w-64 bg-white shadow-sm min-h-screen">
-            <div class="p-4">
-                <nav class="space-y-2">
-                    <a href="<?= route('admin.dashboard') ?>" 
-                       class="flex items-center px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-md">
-                        <i class="fas fa-tachometer-alt mr-3"></i>
-                        Dashboard
-                    </a>
-                    <a href="<?= route('admin.movies') ?>" 
-                       class="flex items-center px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-md">
-                        <i class="fas fa-film mr-3"></i>
-                        Movies
-                    </a>
-                    <a href="<?= route('admin.news') ?>" 
-                       class="flex items-center px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-md">
-                        <i class="fas fa-newspaper mr-3"></i>
-                        News
-                    </a>
-                    <a href="<?= route('admin.venues') ?>" 
-                       class="flex items-center px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-md">
-                        <i class="fas fa-building mr-3"></i>
-                        Venues
-                    </a>
-                    <a href="<?= route('admin.bookings') ?>" 
-                       class="flex items-center px-4 py-2 text-sm font-medium text-white bg-purple-700 rounded-md">
-                        <i class="fas fa-ticket-alt mr-3"></i>
-                        Bookings
-                    </a>
-                    <a href="<?= route('admin.users') ?>" 
-                       class="flex items-center px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-md">
-                        <i class="fas fa-users mr-3"></i>
-                        Users
-                    </a>
-                    <a href="<?= route('public.home') ?>" 
-                       class="flex items-center px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-md">
-                        <i class="fas fa-external-link-alt mr-3"></i>
-                        View Website
-                    </a>
-                </nav>
-            </div>
-        </div>
+        <?php $currentPage = 'bookings'; include __DIR__ . '/partials/sidebar.php'; ?>
 
-        <!-- Main Content -->
         <div class="flex-1 p-8">
             <div class="mb-8">
                 <h1 class="text-3xl font-bold text-gray-900">Bookings Management</h1>
                 <p class="text-gray-600">View and manage all bookings</p>
             </div>
 
-            <!-- Messages -->
             <?php if ($message): ?>
                 <div class="mb-4 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-md">
-                    <i class="fas fa-check-circle mr-2"></i>
-                    <?= htmlspecialchars($message) ?>
+                    <i class="fas fa-check-circle mr-2"></i><?= htmlspecialchars($message) ?>
                 </div>
             <?php endif; ?>
 
             <?php if ($error): ?>
                 <div class="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md">
-                    <i class="fas fa-exclamation-circle mr-2"></i>
-                    <?= htmlspecialchars($error) ?>
+                    <i class="fas fa-exclamation-circle mr-2"></i><?= htmlspecialchars($error) ?>
                 </div>
             <?php endif; ?>
 
             <!-- Statistics Cards -->
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                <div class="bg-white overflow-hidden shadow rounded-lg">
-                    <div class="p-5">
-                        <div class="flex items-center">
-                            <div class="flex-shrink-0">
-                                <i class="fas fa-ticket-alt text-purple-600 text-2xl"></i>
-                            </div>
-                            <div class="ml-5 w-0 flex-1">
-                                <dl>
-                                    <dt class="text-sm font-medium text-gray-500 truncate">Total Bookings</dt>
-                                    <dd class="text-lg font-medium text-gray-900"><?= $stats['total_bookings'] ?></dd>
-                                </dl>
-                            </div>
+                <div class="bg-white overflow-hidden shadow rounded-lg p-5">
+                    <div class="flex items-center">
+                        <i class="fas fa-ticket-alt text-purple-600 text-2xl"></i>
+                        <div class="ml-5">
+                            <p class="text-sm font-medium text-gray-500">Total Bookings</p>
+                            <p class="text-lg font-medium text-gray-900"><?= $stats['total_bookings'] ?></p>
                         </div>
                     </div>
                 </div>
-
-                <div class="bg-white overflow-hidden shadow rounded-lg">
-                    <div class="p-5">
-                        <div class="flex items-center">
-                            <div class="flex-shrink-0">
-                                <i class="fas fa-dollar-sign text-green-600 text-2xl"></i>
-                            </div>
-                            <div class="ml-5 w-0 flex-1">
-                                <dl>
-                                    <dt class="text-sm font-medium text-gray-500 truncate">Total Revenue</dt>
-                                    <dd class="text-lg font-medium text-gray-900">$<?= number_format($stats['total_revenue'], 2) ?></dd>
-                                </dl>
-                            </div>
+                <div class="bg-white overflow-hidden shadow rounded-lg p-5">
+                    <div class="flex items-center">
+                        <i class="fas fa-dollar-sign text-green-600 text-2xl"></i>
+                        <div class="ml-5">
+                            <p class="text-sm font-medium text-gray-500">Total Revenue</p>
+                            <p class="text-lg font-medium text-gray-900">$<?= number_format($stats['total_revenue'], 2) ?></p>
                         </div>
                     </div>
                 </div>
-
-                <div class="bg-white overflow-hidden shadow rounded-lg">
-                    <div class="p-5">
-                        <div class="flex items-center">
-                            <div class="flex-shrink-0">
-                                <i class="fas fa-calendar-day text-blue-600 text-2xl"></i>
-                            </div>
-                            <div class="ml-5 w-0 flex-1">
-                                <dl>
-                                    <dt class="text-sm font-medium text-gray-500 truncate">Today's Bookings</dt>
-                                    <dd class="text-lg font-medium text-gray-900"><?= $stats['today_bookings'] ?></dd>
-                                </dl>
-                            </div>
+                <div class="bg-white overflow-hidden shadow rounded-lg p-5">
+                    <div class="flex items-center">
+                        <i class="fas fa-calendar-day text-blue-600 text-2xl"></i>
+                        <div class="ml-5">
+                            <p class="text-sm font-medium text-gray-500">Today's Bookings</p>
+                            <p class="text-lg font-medium text-gray-900"><?= $stats['today_bookings'] ?></p>
                         </div>
                     </div>
                 </div>
-
-                <div class="bg-white overflow-hidden shadow rounded-lg">
-                    <div class="p-5">
-                        <div class="flex items-center">
-                            <div class="flex-shrink-0">
-                                <i class="fas fa-chart-line text-yellow-600 text-2xl"></i>
-                            </div>
-                            <div class="ml-5 w-0 flex-1">
-                                <dl>
-                                    <dt class="text-sm font-medium text-gray-500 truncate">Today's Revenue</dt>
-                                    <dd class="text-lg font-medium text-gray-900">$<?= number_format($stats['today_revenue'], 2) ?></dd>
-                                </dl>
-                            </div>
+                <div class="bg-white overflow-hidden shadow rounded-lg p-5">
+                    <div class="flex items-center">
+                        <i class="fas fa-chart-line text-yellow-600 text-2xl"></i>
+                        <div class="ml-5">
+                            <p class="text-sm font-medium text-gray-500">Today's Revenue</p>
+                            <p class="text-lg font-medium text-gray-900">$<?= number_format($stats['today_revenue'], 2) ?></p>
                         </div>
                     </div>
                 </div>
@@ -275,24 +177,19 @@ $admin = getAdminInfo();
                 <form method="GET" class="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div>
                         <label for="movie" class="block text-sm font-medium text-gray-700">Movie</label>
-                        <input type="text" id="movie" name="movie" value="<?= htmlspecialchars($filter_movie) ?>"
-                               class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500">
+                        <input type="text" id="movie" name="movie" value="<?= htmlspecialchars($filter_movie) ?>" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500">
                     </div>
                     <div>
                         <label for="venue" class="block text-sm font-medium text-gray-700">Venue</label>
-                        <input type="text" id="venue" name="venue" value="<?= htmlspecialchars($filter_venue) ?>"
-                               class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500">
+                        <input type="text" id="venue" name="venue" value="<?= htmlspecialchars($filter_venue) ?>" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500">
                     </div>
                     <div>
                         <label for="date" class="block text-sm font-medium text-gray-700">Date</label>
-                        <input type="date" id="date" name="date" value="<?= htmlspecialchars($filter_date) ?>"
-                               class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500">
+                        <input type="date" id="date" name="date" value="<?= htmlspecialchars($filter_date) ?>" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500">
                     </div>
                     <div class="flex items-end">
-                        <button type="submit" 
-                                class="w-full bg-purple-700 hover:bg-purple-800 text-white px-4 py-2 rounded-md">
-                            <i class="fas fa-search mr-2"></i>
-                            Filter
+                        <button type="submit" class="w-full bg-purple-700 hover:bg-purple-800 text-white px-4 py-2 rounded-md">
+                            <i class="fas fa-search mr-2"></i>Filter
                         </button>
                     </div>
                 </form>
@@ -307,32 +204,30 @@ $admin = getAdminInfo();
                     <table class="min-w-full divide-y divide-gray-200">
                         <thead class="bg-gray-50">
                             <tr>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Movie</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Venue</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Show Date</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Seats</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Customer</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Movie</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Venue</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Show Date</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Seats</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                             </tr>
                         </thead>
                         <tbody class="bg-white divide-y divide-gray-200">
                             <?php foreach ($bookings as $booking): ?>
                                 <tr>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                        #<?= $booking['id'] ?>
-                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#<?= $booking['id'] ?></td>
                                     <td class="px-6 py-4 whitespace-nowrap">
-                                        <div class="text-sm font-medium text-gray-900"><?= htmlspecialchars($booking['user_name']) ?></div>
-                                        <div class="text-sm text-gray-500"><?= htmlspecialchars($booking['user_email']) ?></div>
+                                        <div class="text-sm font-medium text-gray-900"><?= htmlspecialchars($booking['user_name'] ?? 'Deleted User') ?></div>
+                                        <div class="text-sm text-gray-500"><?= htmlspecialchars($booking['user_email'] ?? '') ?></div>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                        <?= htmlspecialchars($booking['movie_title']) ?>
+                                        <?= htmlspecialchars($booking['movie_title'] ?? 'Deleted Movie') ?>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                        <?= htmlspecialchars($booking['venue_name']) ?><br>
-                                        <span class="text-xs text-gray-400"><?= htmlspecialchars($booking['screen_name']) ?></span>
+                                        <?= htmlspecialchars($booking['venue_name'] ?? 'Deleted Venue') ?><br>
+                                        <span class="text-xs text-gray-400"><?= htmlspecialchars($booking['screen_name'] ?? '') ?></span>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                         <?= date('M j, Y', strtotime($booking['show_date'])) ?><br>
@@ -345,8 +240,7 @@ $admin = getAdminInfo();
                                         $<?= number_format($booking['total_price'], 2) ?>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                        <button onclick="deleteBooking(<?= $booking['id'] ?>)" 
-                                                class="text-red-600 hover:text-red-900">
+                                        <button onclick="deleteBooking(<?= $booking['id'] ?>)" class="text-red-600 hover:text-red-900">
                                             <i class="fas fa-trash"></i>
                                         </button>
                                     </td>
@@ -359,7 +253,6 @@ $admin = getAdminInfo();
         </div>
     </div>
 
-    <!-- Delete Form -->
     <form id="deleteForm" method="POST" style="display: none;">
         <?= csrfField() ?>
         <input type="hidden" name="action" value="delete">

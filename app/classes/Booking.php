@@ -3,7 +3,8 @@ require_once __DIR__ . '/Database.php';
 
 /**
  * Booking Class
- * Handles booking operations
+ * 
+ * Handles booking operations with seat reservations.
  */
 class Booking {
     private $id;
@@ -33,69 +34,73 @@ class Booking {
     }
     
     /**
-     * Get all bookings
+     * Get all bookings with related data
      */
     public static function getAll() {
-        $sql = "SELECT b.*, 
+        return Database::query("
+            SELECT b.*, 
                 u.full_name as user_name, u.email as user_email,
                 m.title as movie_title,
                 v.name as venue_name,
                 s.screen_name
-                FROM bookings b
-                LEFT JOIN users u ON b.user_id = u.id
-                LEFT JOIN movies m ON b.movie_id = m.id
-                LEFT JOIN venues v ON b.venue_id = v.id
-                LEFT JOIN screens s ON b.screen_id = s.id
-                ORDER BY b.created_at DESC";
-        return Database::query($sql);
+            FROM bookings b
+            LEFT JOIN users u ON b.user_id = u.id
+            LEFT JOIN movies m ON b.movie_id = m.id
+            LEFT JOIN venues v ON b.venue_id = v.id
+            LEFT JOIN screens s ON b.screen_id = s.id
+            ORDER BY b.created_at DESC
+        ");
     }
     
     /**
-     * Get booking by ID
+     * Get booking by ID with related data
      */
     public static function getById($id) {
-        $sql = "SELECT b.*, 
+        return Database::queryOne("
+            SELECT b.*, 
                 u.full_name as user_name, u.email as user_email,
                 m.title as movie_title,
                 v.name as venue_name,
                 s.screen_name
-                FROM bookings b
-                LEFT JOIN users u ON b.user_id = u.id
-                LEFT JOIN movies m ON b.movie_id = m.id
-                LEFT JOIN venues v ON b.venue_id = v.id
-                LEFT JOIN screens s ON b.screen_id = s.id
-                WHERE b.id = ?";
-        return Database::queryOne($sql, [$id], 'i');
+            FROM bookings b
+            LEFT JOIN users u ON b.user_id = u.id
+            LEFT JOIN movies m ON b.movie_id = m.id
+            LEFT JOIN venues v ON b.venue_id = v.id
+            LEFT JOIN screens s ON b.screen_id = s.id
+            WHERE b.id = ?
+        ", [$id], 'i');
     }
     
     /**
      * Get bookings by user ID
      */
     public static function getByUserId($userId) {
-        $sql = "SELECT b.*, 
+        return Database::query("
+            SELECT b.*, 
                 m.title as movie_title, m.img as movie_img,
                 v.name as venue_name,
                 s.screen_name
-                FROM bookings b
-                LEFT JOIN movies m ON b.movie_id = m.id
-                LEFT JOIN venues v ON b.venue_id = v.id
-                LEFT JOIN screens s ON b.screen_id = s.id
-                WHERE b.user_id = ?
-                ORDER BY b.created_at DESC";
-        return Database::query($sql, [$userId], 'i');
+            FROM bookings b
+            LEFT JOIN movies m ON b.movie_id = m.id
+            LEFT JOIN venues v ON b.venue_id = v.id
+            LEFT JOIN screens s ON b.screen_id = s.id
+            WHERE b.user_id = ?
+            ORDER BY b.created_at DESC
+        ", [$userId], 'i');
     }
     
     /**
      * Get booked seats for a show
      */
     public static function getBookedSeats($screenId, $showDate, $showTime) {
-        $sql = "SELECT sr.seat_row, sr.seat_number 
-                FROM seat_reservations sr 
-                JOIN bookings b ON sr.booking_id = b.id 
-                WHERE b.screen_id = ? 
-                AND b.show_date = ? 
-                AND b.show_time = ?";
-        return Database::query($sql, [$screenId, $showDate, $showTime], 'iss');
+        return Database::query("
+            SELECT sr.seat_row, sr.seat_number 
+            FROM seat_reservations sr 
+            JOIN bookings b ON sr.booking_id = b.id 
+            WHERE b.screen_id = ? 
+            AND b.show_date = ? 
+            AND b.show_time = ?
+        ", [$screenId, $showDate, $showTime], 'iss');
     }
     
     /**
@@ -111,7 +116,6 @@ class Booking {
             'iiiissid'
         );
         
-        // Save seat reservations
         if (!empty($seats)) {
             $this->saveSeats($seats);
         }
@@ -123,29 +127,23 @@ class Booking {
      * Save seat reservations
      */
     private function saveSeats($seats) {
-        $conn = Database::getConnection();
-        $stmt = $conn->prepare(
-            "INSERT INTO seat_reservations (booking_id, screen_id, seat_row, seat_number, is_wheelchair) 
-             VALUES (?, ?, ?, ?, ?)"
-        );
-        
         foreach ($seats as $seat) {
             $seatRow = $seat['row'] ?? $seat['seat_row'] ?? '';
             $seatNumber = $seat['number'] ?? $seat['seat_number'] ?? 0;
             $isWheelchair = $seat['is_wheelchair'] ?? false;
             
-            $stmt->bind_param('iisii', $this->id, $this->screenId, $seatRow, $seatNumber, $isWheelchair);
-            $stmt->execute();
+            Database::execute(
+                "INSERT INTO seat_reservations (booking_id, screen_id, seat_row, seat_number, is_wheelchair) VALUES (?, ?, ?, ?, ?)",
+                [$this->id, $this->screenId, $seatRow, $seatNumber, $isWheelchair],
+                'iisii'
+            );
         }
-        
-        $stmt->close();
     }
     
     /**
      * Delete booking
      */
     public static function delete($id) {
-        // Seat reservations will be deleted automatically due to CASCADE
         return Database::execute("DELETE FROM bookings WHERE id = ?", [$id], 'i');
     }
     
@@ -168,4 +166,3 @@ class Booking {
     public function getTotalPrice() { return $this->totalPrice; }
     public function setTotalPrice($totalPrice) { $this->totalPrice = $totalPrice; }
 }
-

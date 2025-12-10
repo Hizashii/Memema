@@ -1,10 +1,13 @@
-<?php include dirname(__DIR__) . '/partials/header.php'; ?>
-
 <?php
-require_once __DIR__ . '/../../../app/auth/user_auth.php';
-require_once __DIR__ . '/../../../app/config/database.php';
-require_once __DIR__ . '/../../../app/config/security.php';
+require_once __DIR__ . '/../../../app/classes/autoload.php';
 require_once __DIR__ . '/../../../app/core/database.php';
+require_once __DIR__ . '/../../../app/config/security.php';
+require_once __DIR__ . '/../../../app/auth/user_auth.php';
+
+// Include header only when accessed directly (not via index.php)
+if (!defined('LOADED_VIA_INDEX')) {
+    include dirname(__DIR__) . '/partials/header.php';
+}
 
 requireUserLogin();
 
@@ -32,10 +35,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         try {
             $user_id = $user['id'];
-            
-            $booking_id = insertBooking($user_id, $movie_id, $venue_id, $screen_id, $show_date, $show_time, count(explode(',', $seats)), $total_price);
-            
             $seat_array = explode(',', $seats);
+            
+            // Create booking using Booking class
+            $booking = new Booking([
+                'user_id' => $user_id,
+                'movie_id' => $movie_id,
+                'venue_id' => $venue_id,
+                'screen_id' => $screen_id,
+                'show_date' => $show_date,
+                'show_time' => $show_time,
+                'seats_count' => count($seat_array),
+                'total_price' => $total_price
+            ]);
+            
+            // Convert seat strings to seat data
+            $seatsData = [];
             foreach ($seat_array as $seat) {
                 $seat = trim($seat);
                 if ($seat) {
@@ -43,9 +58,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $number = (int)substr($seat, 1);
                     $is_wheelchair = ($row === 'J' && $number === 1) || ($row === 'I' && $number === 16);
                     
-                    insertSeatReservation($booking_id, $screen_id, $row, $number, $is_wheelchair ? 1 : 0);
+                    $seatsData[] = [
+                        'seat_row' => $row,
+                        'seat_number' => $number,
+                        'is_wheelchair' => $is_wheelchair ? 1 : 0
+                    ];
                 }
             }
+            
+            $booking_id = $booking->create($seatsData);
             
             $success = true;
             $booking_number = 'BK' . str_pad($booking_id, 6, '0', STR_PAD_LEFT);
@@ -77,7 +98,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <h2 class="text-xl font-bold mb-6">Booking Details</h2>
       <div class="space-y-4">
         <div class="flex justify-between">
-          <span class="text-gray-600">Movie:</span>
+          <span class="text-gray-600">Name:</span>
           <span class="font-semibold"><?= htmlspecialchars($full_name) ?></span>
         </div>
         <div class="flex justify-between">
@@ -149,4 +170,4 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <?php endif; ?>
 </main>
 
-<?php include dirname(__DIR__) . '/partials/footer.php'; ?>
+<?php if (!defined('LOADED_VIA_INDEX')) { include dirname(__DIR__) . '/partials/footer.php'; } ?>

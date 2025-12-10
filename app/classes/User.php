@@ -3,7 +3,8 @@ require_once __DIR__ . '/Database.php';
 
 /**
  * User Class
- * Handles user operations
+ * 
+ * Handles user CRUD operations with password hashing.
  */
 class User {
     private $id;
@@ -39,13 +40,13 @@ class User {
     public static function getById($id) {
         $user = Database::queryOne("SELECT * FROM users WHERE id = ?", [$id], 'i');
         if ($user) {
-            unset($user['password']); // Don't return password
+            unset($user['password']);
         }
         return $user;
     }
     
     /**
-     * Get user by email
+     * Get user by email (includes password for verification)
      */
     public static function getByEmail($email) {
         return Database::queryOne("SELECT * FROM users WHERE email = ?", [$email], 's');
@@ -55,7 +56,6 @@ class User {
      * Create a new user
      */
     public function create() {
-        // Hash password
         if (!empty($this->password)) {
             $this->password = password_hash($this->password, PASSWORD_DEFAULT);
         }
@@ -81,7 +81,6 @@ class User {
         $params = [$this->fullName, $this->email, $this->phone];
         $types = 'sss';
         
-        // Update password if provided
         if (!empty($this->password)) {
             $this->password = password_hash($this->password, PASSWORD_DEFAULT);
             $sql .= ", password = ?";
@@ -124,4 +123,3 @@ class User {
     public function getCreatedAt() { return $this->createdAt; }
     public function getUpdatedAt() { return $this->updatedAt; }
 }
-

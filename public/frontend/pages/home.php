@@ -1,10 +1,18 @@
 <?php
-require_once __DIR__ . '/../../../app/config/database.php';
+require_once __DIR__ . '/../../../app/classes/autoload.php';
 require_once __DIR__ . '/../../../app/core/database.php';
 
+// Include header only when accessed directly (not via index.php)
+if (!defined('LOADED_VIA_INDEX')) {
+    include dirname(__DIR__) . '/partials/header.php';
+}
+
 try {
-    $news = executeQuery("SELECT title, excerpt, img FROM news ORDER BY created_at DESC LIMIT 3");
-    $movies = executeQuery("SELECT id, title, img, rating, duration_minutes FROM movies ORDER BY id ASC LIMIT 8");
+    $news = News::getAll();
+    $news = array_slice($news, 0, 3); // Get only first 3 news items
+    
+    $movies = Movie::getAll();
+    $movies = array_slice($movies, 0, 8); // Get only first 8 movies
 } catch (Exception $e) {
     $news = [];
     $movies = [];
@@ -87,3 +95,5 @@ try {
     <?php endif; ?>
   </section>
 </main>
+
+<?php if (!defined('LOADED_VIA_INDEX')) { include dirname(__DIR__) . '/partials/footer.php'; } ?>

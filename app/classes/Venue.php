@@ -3,7 +3,8 @@ require_once __DIR__ . '/Database.php';
 
 /**
  * Venue Class
- * Handles venue CRUD operations
+ * 
+ * Handles venue CRUD operations with screens.
  */
 class Venue {
     private $id;
@@ -24,12 +25,11 @@ class Venue {
     }
     
     /**
-     * Get all venues
+     * Get all venues with screens
      */
     public static function getAll() {
-        $venues = Database::query("SELECT * FROM venues ORDER BY id DESC");
+        $venues = Database::query("SELECT * FROM venues ORDER BY name");
         
-        // Get screens for each venue
         foreach ($venues as &$venue) {
             $venue['screens'] = self::getScreens($venue['id']);
         }
@@ -38,7 +38,7 @@ class Venue {
     }
     
     /**
-     * Get venue by ID
+     * Get venue by ID with screens
      */
     public static function getById($id) {
         $venue = Database::queryOne("SELECT * FROM venues WHERE id = ?", [$id], 'i');
@@ -93,7 +93,6 @@ class Venue {
      * Delete venue
      */
     public static function delete($id) {
-        // Screens will be deleted automatically due to CASCADE
         return Database::execute("DELETE FROM venues WHERE id = ?", [$id], 'i');
     }
     
@@ -108,4 +107,3 @@ class Venue {
     public function getImage() { return $this->image; }
     public function setImage($image) { $this->image = $image; }
 }
-

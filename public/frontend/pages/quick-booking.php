@@ -1,9 +1,12 @@
-<?php include dirname(__DIR__) . '/partials/header.php'; ?>
-
 <?php
-require_once __DIR__ . '/../../../app/auth/user_auth.php';
-require_once __DIR__ . '/../../../app/config/database.php';
+require_once __DIR__ . '/../../../app/classes/autoload.php';
 require_once __DIR__ . '/../../../app/core/database.php';
+require_once __DIR__ . '/../../../app/auth/user_auth.php';
+
+// Include header only when accessed directly (not via index.php)
+if (!defined('LOADED_VIA_INDEX')) {
+    include dirname(__DIR__) . '/partials/header.php';
+}
 
 requireUserLogin();
 
@@ -12,9 +15,9 @@ $message = '';
 $error = '';
 
 try {
-    $movies = executeQuery("SELECT id, title, img, duration_minutes, rating FROM movies ORDER BY title");
-    $venues = executeQuery("SELECT id, name, address FROM venues ORDER BY name");
-    $screens = executeQuery("SELECT id, venue_id, screen_name, screen_type, base_price, capacity FROM screens ORDER BY venue_id, screen_name");
+    $movies = Movie::getAll();
+    $venues = Venue::getAll();
+    $screens = Screen::getAll();
 } catch (Exception $e) {
     $movies = [];
     $venues = [];
@@ -32,20 +35,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     if ($movieId && $venueId && $screenId && $showDate && $showTime && $seatsCount > 0) {
         try {
-            $screenData = executeQuery("SELECT base_price FROM screens WHERE id = ?", [$screenId]);
-            if (empty($screenData)) {
+            $screenData = Screen::getById($screenId);
+            if (!$screenData) {
                 throw new Exception('Screen not found');
             }
             
-            $basePrice = (float)$screenData[0]['base_price'];
+            $basePrice = (float)$screenData['base_price'];
             $totalPrice = $basePrice * $seatsCount;
             
-            $result = executeQuery(
-                "INSERT INTO bookings (user_id, movie_id, venue_id, screen_id, show_date, show_time, seats_count, total_price) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                [$user['id'], $movieId, $venueId, $screenId, $showDate, $showTime, $seatsCount, $totalPrice]
-            );
+            // Create booking using Booking class
+            $booking = new Booking([
+                'user_id' => $user['id'],
+                'movie_id' => $movieId,
+                'venue_id' => $venueId,
+                'screen_id' => $screenId,
+                'show_date' => $showDate,
+                'show_time' => $showTime,
+                'seats_count' => $seatsCount,
+                'total_price' => $totalPrice
+            ]);
             
-            if ($result) {
+            if ($booking->create()) {
                 $message = "Booking successful! Total: $" . number_format($totalPrice, 2);
             } else {
                 $error = "Failed to create booking. Please try again.";
@@ -208,4 +218,4 @@ document.getElementById('screen_id').addEventListener('change', updatePrice);
 document.getElementById('seats_count').addEventListener('change', updatePrice);
 </script>
 
-<?php include dirname(__DIR__) . '/partials/footer.php'; ?>
+<?php if (!defined('LOADED_VIA_INDEX')) { include dirname(__DIR__) . '/partials/footer.php'; } ?>

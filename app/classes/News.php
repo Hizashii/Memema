@@ -3,7 +3,8 @@ require_once __DIR__ . '/Database.php';
 
 /**
  * News Class
- * Handles news CRUD operations
+ * 
+ * Handles news CRUD operations.
  */
 class News {
     private $id;
@@ -20,7 +21,7 @@ class News {
             $this->img = $data['img'] ?? '';
             $this->title = $data['title'] ?? '';
             $this->excerpt = $data['excerpt'] ?? '';
-            $this->url = $data['url'] ?? '';
+            $this->url = $data['url'] ?? '#';
             $this->createdAt = $data['created_at'] ?? null;
             $this->updatedAt = $data['updated_at'] ?? null;
         }
@@ -94,4 +95,3 @@ class News {
     public function getCreatedAt() { return $this->createdAt; }
     public function getUpdatedAt() { return $this->updatedAt; }
 }
-

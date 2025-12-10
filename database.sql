@@ -1,8 +1,28 @@
 -- =============================================
--- CREATE DATABASE
+-- CINEMA DATABASE SCHEMA
 -- =============================================
-CREATE DATABASE IF NOT EXISTS Cinema;
-USE Cinema;
+-- Version: 2.0
+-- Updated: Fixed foreign key constraints, added views and triggers
+-- =============================================
+
+-- Create database if it doesn't exist and select it
+CREATE DATABASE IF NOT EXISTS cinema CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE cinema;
+
+-- Drop tables in reverse order of dependencies
+DROP TABLE IF EXISTS seat_reservations;
+DROP TABLE IF EXISTS bookings;
+DROP TABLE IF EXISTS showtimes;
+DROP TABLE IF EXISTS shows;
+DROP TABLE IF EXISTS screens;
+DROP TABLE IF EXISTS movie_genres;
+DROP TABLE IF EXISTS movies;
+DROP TABLE IF EXISTS venues;
+DROP TABLE IF EXISTS users;
+DROP TABLE IF EXISTS contact_messages;
+DROP TABLE IF EXISTS contact_info;
+DROP TABLE IF EXISTS news;
+DROP TABLE IF EXISTS booking_audit;
 
 -- =============================================
 -- NEWS TABLE
@@ -17,16 +37,24 @@ CREATE TABLE IF NOT EXISTS news (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Movies table - stores movies
+-- =============================================
+-- MOVIES TABLE
+-- =============================================
 CREATE TABLE IF NOT EXISTS movies (
   id INT AUTO_INCREMENT PRIMARY KEY,
   title VARCHAR(255) NOT NULL,
   img VARCHAR(255) NOT NULL,
   duration_minutes INT DEFAULT NULL,
-  rating DECIMAL(2,1) DEFAULT NULL
+  rating DECIMAL(2,1) DEFAULT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_title (title),
+  INDEX idx_rating (rating)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Movie genres table - genres per movie
+-- =============================================
+-- MOVIE GENRES TABLE
+-- =============================================
 CREATE TABLE IF NOT EXISTS movie_genres (
   movie_id INT NOT NULL,
   genre VARCHAR(50) NOT NULL,
@@ -34,16 +62,22 @@ CREATE TABLE IF NOT EXISTS movie_genres (
   FOREIGN KEY (movie_id) REFERENCES movies(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Venues table - stores cinema venues
+-- =============================================
+-- VENUES TABLE
+-- =============================================
 CREATE TABLE IF NOT EXISTS venues (
   id INT AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(255) NOT NULL,
   address VARCHAR(255) NOT NULL,
   phone VARCHAR(50) NOT NULL,
-  image VARCHAR(255) NOT NULL
+  image VARCHAR(255) NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Screens table - screens within venues
+-- =============================================
+-- SCREENS TABLE
+-- =============================================
 CREATE TABLE IF NOT EXISTS screens (
   id INT AUTO_INCREMENT PRIMARY KEY,
   venue_id INT NOT NULL,
@@ -51,51 +85,73 @@ CREATE TABLE IF NOT EXISTS screens (
   screen_type ENUM('standard', 'premium', 'imax', 'vip') NOT NULL,
   base_price DECIMAL(6,2) NOT NULL,
   capacity INT NOT NULL,
-  FOREIGN KEY (venue_id) REFERENCES venues(id) ON DELETE CASCADE
+  FOREIGN KEY (venue_id) REFERENCES venues(id) ON DELETE CASCADE,
+  INDEX idx_venue (venue_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Users table - basic users
+-- =============================================
+-- USERS TABLE
+-- =============================================
 CREATE TABLE IF NOT EXISTS users (
   id INT AUTO_INCREMENT PRIMARY KEY,
   full_name VARCHAR(255) NOT NULL,
   email VARCHAR(255) NOT NULL UNIQUE,
   password VARCHAR(255) NOT NULL,
   phone VARCHAR(20) DEFAULT NULL,
+  is_active BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_email (email)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Bookings table - ticket bookings
+-- =============================================
+-- BOOKINGS TABLE
+-- Fixed: Using SET NULL for foreign keys to prevent constraint failures
+-- =============================================
 CREATE TABLE IF NOT EXISTS bookings (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  user_id INT NOT NULL,
-  movie_id INT NOT NULL,
-  venue_id INT NOT NULL,
-  screen_id INT NOT NULL,
+  user_id INT DEFAULT NULL,
+  movie_id INT DEFAULT NULL,
+  venue_id INT DEFAULT NULL,
+  screen_id INT DEFAULT NULL,
   show_date DATE NOT NULL,
   show_time TIME NOT NULL,
   seats_count INT NOT NULL,
   total_price DECIMAL(8,2) NOT NULL,
+  status ENUM('confirmed', 'cancelled', 'completed') DEFAULT 'confirmed',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (user_id) REFERENCES users(id),
-  FOREIGN KEY (movie_id) REFERENCES movies(id),
-  FOREIGN KEY (venue_id) REFERENCES venues(id),
-  FOREIGN KEY (screen_id) REFERENCES screens(id)
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  -- Foreign keys with SET NULL to prevent constraint failures on delete
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
+  FOREIGN KEY (movie_id) REFERENCES movies(id) ON DELETE SET NULL,
+  FOREIGN KEY (venue_id) REFERENCES venues(id) ON DELETE SET NULL,
+  FOREIGN KEY (screen_id) REFERENCES screens(id) ON DELETE SET NULL,
+  -- Indexes for common queries
+  INDEX idx_user (user_id),
+  INDEX idx_movie (movie_id),
+  INDEX idx_show_date (show_date),
+  INDEX idx_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Seat reservations table - individual seat bookings
+-- =============================================
+-- SEAT RESERVATIONS TABLE
+-- =============================================
 CREATE TABLE IF NOT EXISTS seat_reservations (
   id INT AUTO_INCREMENT PRIMARY KEY,
   booking_id INT NOT NULL,
-  screen_id INT NOT NULL,
+  screen_id INT DEFAULT NULL,
   seat_row CHAR(1) NOT NULL,
   seat_number INT NOT NULL,
   is_wheelchair BOOLEAN DEFAULT FALSE,
   FOREIGN KEY (booking_id) REFERENCES bookings(id) ON DELETE CASCADE,
-  FOREIGN KEY (screen_id) REFERENCES screens(id)
+  FOREIGN KEY (screen_id) REFERENCES screens(id) ON DELETE SET NULL,
+  INDEX idx_booking (booking_id),
+  UNIQUE KEY unique_seat_booking (booking_id, seat_row, seat_number)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Contact info table - site contacts
+-- =============================================
+-- CONTACT INFO TABLE
+-- =============================================
 CREATE TABLE IF NOT EXISTS contact_info (
   id INT AUTO_INCREMENT PRIMARY KEY,
   phone VARCHAR(50) NOT NULL,
@@ -103,7 +159,9 @@ CREATE TABLE IF NOT EXISTS contact_info (
   address VARCHAR(255) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Contact messages table - store contact form submissions
+-- =============================================
+-- CONTACT MESSAGES TABLE
+-- =============================================
 CREATE TABLE IF NOT EXISTS contact_messages (
   id INT AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(255) NOT NULL,
@@ -112,7 +170,9 @@ CREATE TABLE IF NOT EXISTS contact_messages (
   message TEXT NOT NULL,
   status ENUM('new', 'read', 'replied') DEFAULT 'new',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_status (status),
+  INDEX idx_created (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =============================================
@@ -139,8 +199,178 @@ CREATE TABLE IF NOT EXISTS showtimes (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =============================================
--- INSERT NEWS DATA
+-- BOOKING AUDIT TABLE (for triggers)
 -- =============================================
+CREATE TABLE IF NOT EXISTS booking_audit (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  booking_id INT NOT NULL,
+  action ENUM('INSERT', 'UPDATE', 'DELETE') NOT NULL,
+  old_status VARCHAR(20) DEFAULT NULL,
+  new_status VARCHAR(20) DEFAULT NULL,
+  old_total DECIMAL(8,2) DEFAULT NULL,
+  new_total DECIMAL(8,2) DEFAULT NULL,
+  changed_by VARCHAR(100) DEFAULT NULL,
+  changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_booking (booking_id),
+  INDEX idx_action (action),
+  INDEX idx_changed_at (changed_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- =============================================
+-- VIEWS
+-- =============================================
+
+-- View: Movie details with genres
+CREATE OR REPLACE VIEW view_movies_with_genres AS
+SELECT 
+    m.id,
+    m.title,
+    m.img,
+    m.duration_minutes,
+    m.rating,
+    m.created_at,
+    GROUP_CONCAT(mg.genre ORDER BY mg.genre SEPARATOR ', ') AS genres
+FROM movies m
+LEFT JOIN movie_genres mg ON m.id = mg.movie_id
+GROUP BY m.id, m.title, m.img, m.duration_minutes, m.rating, m.created_at;
+
+-- View: Booking details with all related info
+CREATE OR REPLACE VIEW view_booking_details AS
+SELECT 
+    b.id AS booking_id,
+    b.show_date,
+    b.show_time,
+    b.seats_count,
+    b.total_price,
+    b.status,
+    b.created_at AS booking_date,
+    u.id AS user_id,
+    u.full_name AS user_name,
+    u.email AS user_email,
+    m.id AS movie_id,
+    m.title AS movie_title,
+    m.img AS movie_image,
+    v.id AS venue_id,
+    v.name AS venue_name,
+    v.address AS venue_address,
+    s.id AS screen_id,
+    s.screen_name,
+    s.screen_type
+FROM bookings b
+LEFT JOIN users u ON b.user_id = u.id
+LEFT JOIN movies m ON b.movie_id = m.id
+LEFT JOIN venues v ON b.venue_id = v.id
+LEFT JOIN screens s ON b.screen_id = s.id;
+
+-- View: Venue with screens summary
+CREATE OR REPLACE VIEW view_venue_screens AS
+SELECT 
+    v.id AS venue_id,
+    v.name AS venue_name,
+    v.address,
+    v.phone,
+    v.image,
+    COUNT(s.id) AS total_screens,
+    SUM(s.capacity) AS total_capacity,
+    MIN(s.base_price) AS min_price,
+    MAX(s.base_price) AS max_price
+FROM venues v
+LEFT JOIN screens s ON v.id = s.venue_id
+GROUP BY v.id, v.name, v.address, v.phone, v.image;
+
+-- View: Daily booking statistics
+CREATE OR REPLACE VIEW view_daily_stats AS
+SELECT 
+    DATE(created_at) AS booking_date,
+    COUNT(*) AS total_bookings,
+    SUM(total_price) AS total_revenue,
+    SUM(seats_count) AS total_seats,
+    AVG(total_price) AS avg_booking_value
+FROM bookings
+WHERE status = 'confirmed'
+GROUP BY DATE(created_at)
+ORDER BY booking_date DESC;
+
+-- View: Popular movies (by booking count)
+CREATE OR REPLACE VIEW view_popular_movies AS
+SELECT 
+    m.id,
+    m.title,
+    m.img,
+    m.rating,
+    COUNT(b.id) AS booking_count,
+    SUM(b.seats_count) AS total_seats_sold,
+    SUM(b.total_price) AS total_revenue
+FROM movies m
+LEFT JOIN bookings b ON m.id = b.movie_id AND b.status = 'confirmed'
+GROUP BY m.id, m.title, m.img, m.rating
+ORDER BY booking_count DESC;
+
+-- =============================================
+-- TRIGGERS
+-- =============================================
+
+-- Trigger: Log booking insertions
+DELIMITER //
+CREATE TRIGGER trg_booking_insert
+AFTER INSERT ON bookings
+FOR EACH ROW
+BEGIN
+    INSERT INTO booking_audit (booking_id, action, new_status, new_total, changed_at)
+    VALUES (NEW.id, 'INSERT', NEW.status, NEW.total_price, NOW());
+END//
+DELIMITER ;
+
+-- Trigger: Log booking updates
+DELIMITER //
+CREATE TRIGGER trg_booking_update
+AFTER UPDATE ON bookings
+FOR EACH ROW
+BEGIN
+    INSERT INTO booking_audit (
+        booking_id, action, old_status, new_status, old_total, new_total, changed_at
+    )
+    VALUES (
+        NEW.id, 'UPDATE', OLD.status, NEW.status, OLD.total_price, NEW.total_price, NOW()
+    );
+END//
+DELIMITER ;
+
+-- Trigger: Log booking deletions
+DELIMITER //
+CREATE TRIGGER trg_booking_delete
+BEFORE DELETE ON bookings
+FOR EACH ROW
+BEGIN
+    INSERT INTO booking_audit (booking_id, action, old_status, old_total, changed_at)
+    VALUES (OLD.id, 'DELETE', OLD.status, OLD.total_price, NOW());
+END//
+DELIMITER ;
+
+-- Trigger: Auto-update movie timestamp when genres change
+DELIMITER //
+CREATE TRIGGER trg_genre_insert
+AFTER INSERT ON movie_genres
+FOR EACH ROW
+BEGIN
+    UPDATE movies SET updated_at = NOW() WHERE id = NEW.movie_id;
+END//
+DELIMITER ;
+
+DELIMITER //
+CREATE TRIGGER trg_genre_delete
+AFTER DELETE ON movie_genres
+FOR EACH ROW
+BEGIN
+    UPDATE movies SET updated_at = NOW() WHERE id = OLD.movie_id;
+END//
+DELIMITER ;
+
+-- =============================================
+-- INSERT SAMPLE DATA
+-- =============================================
+
+-- INSERT NEWS DATA
 INSERT INTO news (img, title, excerpt, url) VALUES
 ('./assets/img/OutsideCinema.jpg', 'Local Film Festival Kicks Off', 'The annual city film festival began last night…', '#'),
 ('./assets/img/AbsoluteRobotAi.jpg', 'Director on AI & Cinema', 'Renowned director Maria Chen shared her insights…', '#'),
@@ -202,7 +432,7 @@ INSERT INTO screens (venue_id, screen_name, screen_type, base_price, capacity) V
 (4, 'Screen 1', 'standard', 12.00, 100),
 (4, 'Screen 2', 'standard', 12.00, 100);
 
--- INSERT USERS DATA
+-- INSERT USERS DATA (password is 'password' hashed with bcrypt)
 INSERT INTO users (full_name, email, password, phone) VALUES
 ('John Doe', 'john@example.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', '+1 (555) 123-4567');
 
@@ -210,18 +440,14 @@ INSERT INTO users (full_name, email, password, phone) VALUES
 INSERT INTO contact_info (phone, email, address) VALUES
 ('+1 (555) 123-CINE', 'info@cinemabook.com', '123 Cinema Street, Movie City, MC 12345');
 
--- =============================================
 -- INSERT SHOWS DATA
--- =============================================
 INSERT INTO shows (title, img, tag_text, tag_color) VALUES
 ('Oppenheimer', './assets/img/Oppenheimer.jpg', 'Drama', 'bg-cyan-600/90'),
 ('The Dark Knight', './assets/img/TheDarkKnight.jpg', 'Action', 'bg-emerald-600/90'),
 ('Free Guy', './assets/img/FreeGuy.jpg', 'Comedy', 'bg-emerald-600/90'),
 ('Joker', './assets/img/Joker.png', 'Drama', 'bg-teal-600/90');
 
--- =============================================
 -- INSERT SHOWTIMES DATA
--- =============================================
 -- Oppenheimer (show_id = 1)
 INSERT INTO showtimes (show_id, time) VALUES
 (1, '10:00 AM'),
@@ -245,4 +471,3 @@ INSERT INTO showtimes (show_id, time) VALUES
 (4, '12:00 PM'),
 (4, '02:45 PM'),
 (4, '05:30 PM');
-

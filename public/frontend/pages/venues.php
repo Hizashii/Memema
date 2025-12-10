@@ -1,11 +1,14 @@
-<?php include dirname(__DIR__) . '/partials/header.php'; ?>
-
 <?php
-require_once __DIR__ . '/../../../app/config/database.php';
+require_once __DIR__ . '/../../../app/classes/autoload.php';
 require_once __DIR__ . '/../../../app/core/database.php';
 
+// Include header only when accessed directly (not via index.php)
+if (!defined('LOADED_VIA_INDEX')) {
+    include dirname(__DIR__) . '/partials/header.php';
+}
+
 try {
-    $venues = executeQuery("SELECT name, address, phone, image FROM venues ORDER BY id ASC");
+    $venues = Venue::getAll();
 } catch (Exception $e) {
     $venues = [];
     $error = "Unable to load venues. Please try again later.";
@@ -55,4 +58,4 @@ try {
   <?php endif; ?>
 </main>
 
-<?php include dirname(__DIR__) . '/partials/footer.php'; ?>
+<?php if (!defined('LOADED_VIA_INDEX')) { include dirname(__DIR__) . '/partials/footer.php'; } ?>
