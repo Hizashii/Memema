@@ -76,3 +76,4 @@ if (!function_exists('getImagePath')) {
         return $base . '/assets/img/' . basename($imagePath);
     }
 }
+
