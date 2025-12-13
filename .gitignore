@@ -1,82 +1,40 @@
-# ===========================================
-# SENSITIVE FILES - NEVER COMMIT THESE
-# ===========================================
-
-# Secrets configuration (contains real credentials)
+# Sensitive files
 app/config/secrets.php
-
-# Legacy environment files (if they exist)
-app/config/environment.php
-app/config/env.php
 .env
 *.env
-.env.*
 
-# ===========================================
-# USER UPLOADED FILES (optional)
-# ===========================================
-# Uncomment the following line to ignore uploaded images
-# assets/img/img_*
+# User uploaded images
+assets/img/img_*
+assets/img/uploads/
 
-# ===========================================
-# IDE AND EDITOR FILES
-# ===========================================
-.idea/
-.vscode/
-*.swp
-*.swo
-*.sublime-project
-*.sublime-workspace
-.project
-.settings/
-*.iml
-
-# ===========================================
-# SYSTEM FILES
-# ===========================================
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
-desktop.ini
-
-# ===========================================
-# LOGS AND DEBUGGING
-# ===========================================
+# Logs
 *.log
 logs/
-error_log
-debug.log
 
-# ===========================================
-# TEMPORARY FILES
-# ===========================================
+# Temporary files
 *.tmp
-*.temp
 *.bak
-*.cache
+*.backup
+*.old
 tmp/
 temp/
 cache/
 
-# ===========================================
-# DEPENDENCY DIRECTORIES (if using Composer)
-# ===========================================
-/vendor/
-composer.lock
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.sublime-*
 
-# ===========================================
-# NODE MODULES (if using npm)
-# ===========================================
-node_modules/
-package-lock.json
+# System files
+.DS_Store
+Thumbs.db
+desktop.ini
 
-# ===========================================
-# PHP SPECIFIC
-# ===========================================
-*.phar
-.phpunit.result.cache
-phpunit.xml
+# Sessions
+sessions/
+*.sess
+
+# Database dumps (keep schema.sql)
+*.sql
+!database/schema.sql

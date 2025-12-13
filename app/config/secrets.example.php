@@ -1,16 +1,5 @@
 <?php
-/**
- * SECRETS CONFIGURATION EXAMPLE
- * 
- * INSTRUCTIONS:
- * 1. Copy this file to 'secrets.php' in the same directory
- * 2. Fill in your actual values in secrets.php
- * 3. NEVER commit secrets.php to version control
- * 4. The secrets.php file is already in .gitignore
- * 
- * To generate a secure APP_SECRET_KEY, run:
- * php -r "echo bin2hex(random_bytes(32));"
- */
+
 
 if (!defined('CINEMA_APP')) {
     die('Direct access not allowed');
@@ -24,12 +13,10 @@ define('DB_USER', 'your_database_user');        // Change this
 define('DB_PASS', 'your_database_password');    // Change this
 define('DB_NAME', 'Cinema');                    // Change this if different
 
-// ===========================================
 // ADMIN CREDENTIALS
 // Use strong, unique credentials in production!
-// ===========================================
 define('ADMIN_USERNAME', 'admin');
-define('ADMIN_PASSWORD', 'change_this_password'); // CHANGE THIS!
+define('ADMIN_PASSWORD', 'passoword'); 
 define('ADMIN_EMAIL', 'admin@yourdomain.com');
 
 // ===========================================

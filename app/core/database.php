@@ -1,84 +1,85 @@
 <?php
-/**
- * Core Helper Functions
- * 
- * Utility functions for path management and image handling.
- * Database operations are handled by the Database class in app/classes/Database.php
- */
 
-require_once __DIR__ . '/../config/database.php';
-
-/**
- * Get the base path for the application
- */
-function getBasePath() {
-    static $basePath = null;
+class Database {
+    private static $instance = null;
+    private $connection = null;
     
-    if ($basePath === null) {
-        $requestUri = strtolower(parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH) ?? '');
-        $scriptName = strtolower($_SERVER['SCRIPT_NAME'] ?? '');
+    private function __construct() {
+        require_once __DIR__ . '/../config/database.php';
         
-        if (preg_match('#^/(cinema|Cinema)/#i', $requestUri) || preg_match('#/(cinema|Cinema)/#i', $scriptName)) {
-            $actualPath = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH) ?? '';
-            if (preg_match('#^/([^/]+)/#', $actualPath, $matches)) {
-                $basePath = '/' . $matches[1];
+        try {
+            $dsn = "mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=utf8mb4";
+            $options = [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                PDO::ATTR_EMULATE_PREPARES => false,
+            ];
+            
+            $this->connection = new PDO($dsn, DB_USER, DB_PASS, $options);
+        } catch (PDOException $e) {
+            error_log("Database connection failed: " . $e->getMessage());
+            if (defined('APP_DEBUG') && APP_DEBUG) {
+                die("Database connection failed: " . $e->getMessage());
             } else {
-                $basePath = '/cinema';
-            }
-        } else {
-            $scriptDir = dirname($_SERVER['SCRIPT_NAME'] ?? '');
-            if ($scriptDir === '/' || $scriptDir === '.') {
-                $basePath = '';
-            } else {
-                $basePath = rtrim($scriptDir, '/');
-                $basePathLower = strtolower($basePath);
-                if (strpos($basePathLower, '/public/frontend') !== false) {
-                    $basePath = str_ireplace('/public/frontend', '', $basePath);
-                    $basePath = rtrim($basePath, '/');
-                }
-                if (strpos($basePathLower, '/admin') !== false) {
-                    $basePath = str_ireplace('/admin', '', $basePath);
-                    $basePath = rtrim($basePath, '/');
-                }
+                die("Database connection failed. Please contact the administrator.");
             }
         }
     }
     
-    return $basePath;
-}
-
-/**
- * Get the proper image path with base path prefix
- */
-function getImagePath($imagePath) {
-    $base = getBasePath();
-    
-    if (empty($imagePath)) {
-        return $base . '/assets/img/default.jpg';
-    }
-    
-    if (strpos($imagePath, 'http') === 0) {
-        return $imagePath;
-    }
-    
-    if (preg_match('#^/(Cinema|cinema)/#i', $imagePath)) {
-        $imagePath = preg_replace('#^/(Cinema|cinema)/#i', $base . '/', $imagePath);
-        return $imagePath;
-    }
-    
-    if (strpos($imagePath, './') === 0) {
-        $imagePath = str_replace('./', '', $imagePath);
-        if (strpos($imagePath, '/') !== 0) {
-            $imagePath = '/' . $imagePath;
+    public static function getInstance() {
+        if (self::$instance === null) {
+            self::$instance = new self();
         }
-        return $base . $imagePath;
+        return self::$instance;
     }
     
-    if (strpos($imagePath, '/') === 0) {
-        return $base . $imagePath;
+    public function getConnection() {
+        return $this->connection;
     }
     
-    $filename = basename($imagePath);
-    return $base . '/assets/img/' . $filename;
+    public function query($sql, $params = []) {
+        try {
+            $stmt = $this->connection->prepare($sql);
+            $stmt->execute($params);
+            return $stmt->fetchAll();
+        } catch (PDOException $e) {
+            error_log("Database query error: " . $e->getMessage() . " | SQL: " . $sql);
+            throw $e;
+        }
+    }
+    
+    public function queryOne($sql, $params = []) {
+        try {
+            $stmt = $this->connection->prepare($sql);
+            $stmt->execute($params);
+            return $stmt->fetch();
+        } catch (PDOException $e) {
+            error_log("Database query error: " . $e->getMessage() . " | SQL: " . $sql);
+            throw $e;
+        }
+    }
+    
+    public function execute($sql, $params = []) {
+        try {
+            $stmt = $this->connection->prepare($sql);
+            $stmt->execute($params);
+            return $this->connection->lastInsertId() ?: true;
+        } catch (PDOException $e) {
+            error_log("Database execute error: " . $e->getMessage() . " | SQL: " . $sql);
+            throw $e;
+        }
+    }
+    
+    public function beginTransaction() {
+        return $this->connection->beginTransaction();
+    }
+    
+    public function commit() {
+        return $this->connection->commit();
+    }
+    
+    public function rollback() {
+        return $this->connection->rollBack();
+    }
 }
 

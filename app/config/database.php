@@ -1,16 +1,12 @@
 <?php
 /**
  * Database Configuration
- * 
- * Loads credentials from secrets.php and sets up database constants.
- * All database operations should use the Database class in app/classes/Database.php
  */
 
 if (!defined('CINEMA_APP')) {
     define('CINEMA_APP', true);
 }
 
-// Load secrets configuration
 $secretsPath = __DIR__ . '/secrets.php';
 
 if (!file_exists($secretsPath)) {
