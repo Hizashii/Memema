@@ -20,10 +20,13 @@ class App {
     }
     
     public function loadRoutes($routeFile) {
-        if (file_exists($routeFile)) {
-            $router = $this->router;
-            require $routeFile;
+        if (!file_exists($routeFile)) {
+            error_log("Route file not found: " . $routeFile);
+            return;
         }
+        
+        $router = $this->router;
+        require $routeFile;
     }
     
     public function run() {

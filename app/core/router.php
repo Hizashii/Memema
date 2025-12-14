@@ -47,8 +47,14 @@ class Router {
     }
     
     private function getUri() {
-        $requestUri = $_SERVER['REQUEST_URI'];
-        $scriptName = $_SERVER['SCRIPT_NAME'];
+        if (isset($_GET['route'])) {
+            $uri = $_GET['route'];
+            $uri = '/' . trim($uri, '/');
+            return rtrim($uri, '/') ?: '/';
+        }
+        
+        $requestUri = $_SERVER['REQUEST_URI'] ?? '/';
+        $scriptName = $_SERVER['SCRIPT_NAME'] ?? '/index.php';
         
         $basePath = str_replace('index.php', '', $scriptName);
         $uri = '/' . trim(str_replace($basePath, '', $requestUri), '/');
@@ -57,15 +63,26 @@ class Router {
             $uri = substr($uri, 0, strpos($uri, '?'));
         }
         
-        if (isset($_GET['route'])) {
-            $uri = '/' . trim($_GET['route'], '/');
+        if (empty($uri) || $uri === '/') {
+            $uri = '/';
         }
         
-        return $uri;
+        return rtrim($uri, '/') ?: '/';
     }
     
     private function matchUri($routeUri, $requestUri, &$params) {
         $params = [];
+        
+        $routeUri = rtrim($routeUri, '/');
+        $requestUri = rtrim($requestUri, '/');
+        
+        if ($routeUri === '' && $requestUri === '') {
+            return true;
+        }
+        
+        if ($routeUri === '' || $requestUri === '') {
+            return false;
+        }
         
         $routeParts = explode('/', trim($routeUri, '/'));
         $requestParts = explode('/', trim($requestUri, '/'));
@@ -114,24 +131,19 @@ class Router {
     }
     
     private function render404($uri, $method) {
-        $availableRoutes = array_map(function($route) {
-            return $route['method'] . ' ' . $route['uri'];
-        }, $this->routes);
-        
-        $errorData = [
-            'uri' => $uri,
-            'method' => $method,
-            'routes' => $availableRoutes
-        ];
-        
         $viewPath = APP_PATH . DIRECTORY_SEPARATOR . 'Core' . DIRECTORY_SEPARATOR . 'View.php';
         if (file_exists($viewPath)) {
             require_once $viewPath;
-            View::render('errors/404', $errorData);
+            View::render('errors/404', [
+                'uri' => $uri,
+                'method' => $method
+            ]);
         } else {
-            echo "<h1>404 - Page not found</h1>";
-            echo "<p>URI: " . htmlspecialchars($uri) . "</p>";
-            echo "<p>Method: " . htmlspecialchars($method) . "</p>";
+            http_response_code(404);
+            echo "<!DOCTYPE html><html><head><title>404 - Page Not Found</title></head><body>";
+            echo "<h1>404 - Page Not Found</h1>";
+            echo "<p>Sorry, the page you are looking for could not be found. It's just an accident that was not intentional.</p>";
+            echo "</body></html>";
         }
     }
 }

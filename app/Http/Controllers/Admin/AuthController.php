@@ -13,9 +13,8 @@ class AuthController extends Controller {
     
     public function loginForm() {
         if ($this->authService->isAdminLoggedIn()) {
-            $base = $this->getBasePath();
-            header('Location: ' . $base . '/public/index.php?route=/admin');
-            exit;
+            $this->redirect('/admin');
+            return;
         }
         
         $error = $this->get('error');
@@ -26,9 +25,8 @@ class AuthController extends Controller {
     
     public function login() {
         if (!$this->isPost()) {
-            $base = $this->getBasePath();
-            header('Location: ' . $base . '/public/index.php?route=/admin/login');
-            exit;
+            $this->redirect('/admin/login');
+            return;
         }
         
         Csrf::validate();
@@ -37,30 +35,20 @@ class AuthController extends Controller {
         $password = $this->post('password', '');
         
         if (empty($username) || empty($password)) {
-            $base = $this->getBasePath();
-            header('Location: ' . $base . '/public/index.php?route=/admin/login&error=' . urlencode('Please fill in all fields'));
-            exit;
+            $this->redirect('/admin/login?error=' . urlencode('Please fill in all fields'));
+            return;
         }
         
         if ($this->authService->authenticateAdmin($username, $password)) {
-            $base = $this->getBasePath();
-            header('Location: ' . $base . '/public/index.php?route=/admin');
-            exit;
+            $this->redirect('/admin');
         } else {
-            $base = $this->getBasePath();
-            header('Location: ' . $base . '/public/index.php?route=/admin/login&error=' . urlencode('Invalid credentials'));
-            exit;
+            $this->redirect('/admin/login?error=' . urlencode('Invalid credentials'));
         }
     }
     
-    /**
-     * Handle logout
-     */
     public function logout() {
         $this->authService->logoutAdmin();
-        $base = $this->getBasePath();
-        header('Location: ' . $base . '/public/index.php?route=/admin/login');
-        exit;
+        $this->redirect('/admin/login');
     }
 }
 

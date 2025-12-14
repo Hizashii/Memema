@@ -7,6 +7,5 @@ RewriteRule ^ - [L]
 RewriteRule ^favicon\.ico$ - [L,R=404]
 RewriteRule ^assets/ - [L]
 RewriteRule ^uploads/ - [L]
-RewriteRule ^admin/ - [L]
 
 RewriteRule ^(.*)$ index.php [QSA,L]

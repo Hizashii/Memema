@@ -2,20 +2,8 @@
 
 if (!function_exists('url')) {
     function url($path = '/') {
-        $scriptName = $_SERVER['SCRIPT_NAME'] ?? '/public/index.php';
-        
-        if (preg_match('#^/([^/]+)/public#', $scriptName, $matches)) {
-            $base = '/' . $matches[1];
-        } elseif (preg_match('#^/([^/]+)#', $scriptName, $matches)) {
-            $base = '/' . $matches[1];
-        } else {
-            $requestUri = $_SERVER['REQUEST_URI'] ?? '';
-            if (preg_match('#^/([^/]+)/public#', $requestUri, $matches)) {
-                $base = '/' . $matches[1];
-            } else {
-                $base = '/Cinema';
-            }
-        }
+        $httpHost = $_SERVER['HTTP_HOST'] ?? '';
+        $isProduction = strpos($httpHost, 'hostingersite.com') !== false;
         
         $queryString = '';
         if (strpos($path, '?') !== false) {
@@ -25,7 +13,27 @@ if (!function_exists('url')) {
         $path = '/' . trim($path, '/');
         if ($path === '/') $path = '';
         
-        $url = $base . '/public/index.php?route=' . urlencode($path);
+        if ($isProduction) {
+            $url = '/index.php?route=' . urlencode($path);
+        } else {
+            $scriptName = $_SERVER['SCRIPT_NAME'] ?? '/public/index.php';
+            
+            if (preg_match('#^/([^/]+)/public#', $scriptName, $matches)) {
+                $base = '/' . $matches[1];
+            } elseif (preg_match('#^/([^/]+)#', $scriptName, $matches)) {
+                $base = '/' . $matches[1];
+            } else {
+                $requestUri = $_SERVER['REQUEST_URI'] ?? '';
+                if (preg_match('#^/([^/]+)/public#', $requestUri, $matches)) {
+                    $base = '/' . $matches[1];
+                } else {
+                    $base = '/Cinema';
+                }
+            }
+            
+            $url = $base . '/public/index.php?route=' . urlencode($path);
+        }
+        
         if (!empty($queryString)) {
             $url .= '&' . $queryString;
         }

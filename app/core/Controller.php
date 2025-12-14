@@ -12,14 +12,25 @@ class Controller {
     }
     
     protected function redirect($path) {
-        $base = $this->getBasePath();
+        $httpHost = $_SERVER['HTTP_HOST'] ?? '';
+        $isProduction = strpos($httpHost, 'hostingersite.com') !== false;
         
         $queryString = '';
         if (strpos($path, '?') !== false) {
             list($path, $queryString) = explode('?', $path, 2);
         }
         
-        $url = $base . '/public/index.php?route=' . urlencode($path);
+        $path = '/' . trim($path, '/');
+        $path = rtrim($path, '/');
+        if ($path === '/') $path = '';
+        
+        if ($isProduction) {
+            $url = '/index.php?route=' . urlencode($path);
+        } else {
+            $base = $this->getBasePath();
+            $url = $base . '/public/index.php?route=' . urlencode($path);
+        }
+        
         if (!empty($queryString)) {
             $url .= '&' . $queryString;
         }
@@ -41,7 +52,12 @@ class Controller {
     }
     
     protected function getBasePath() {
+        $httpHost = $_SERVER['HTTP_HOST'] ?? '';
         $scriptName = $_SERVER['SCRIPT_NAME'] ?? '/public/index.php';
+        
+        if (strpos($httpHost, 'hostingersite.com') !== false) {
+            return '';
+        }
         
         if (preg_match('#^/([^/]+)/public#', $scriptName, $matches)) {
             return '/' . $matches[1];
