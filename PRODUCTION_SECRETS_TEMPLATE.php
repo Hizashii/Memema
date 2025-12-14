@@ -17,9 +17,9 @@ if (!defined('CINEMA_APP')) {
 // Get these from Hostinger hPanel -> Databases
 // ===========================================
 define('DB_HOST', 'localhost');                    // Usually 'localhost' on Hostinger
-define('DB_USER', 'u295920917_php_cinema');        // Your Hostinger database username
-define('DB_PASS', 'YOUR_ACTUAL_DATABASE_PASSWORD'); // ⚠️ REPLACE THIS with your actual password from hPanel
-define('DB_NAME', 'u295920917_cinema');            // Your Hostinger database name (usually starts with u295920917_)
+define('DB_USER', 'u295920917_u295920917');        // Your Hostinger database username
+define('DB_PASS', 'Kookaburra!23');                // Your Hostinger database password
+define('DB_NAME', 'u295920917_u295920917');        // Your Hostinger database name
 
 // ===========================================
 // ADMIN CREDENTIALS
