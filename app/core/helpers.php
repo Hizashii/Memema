@@ -36,7 +36,12 @@ if (!function_exists('url')) {
 
 if (!function_exists('getBasePath')) {
     function getBasePath() {
+        $httpHost = $_SERVER['HTTP_HOST'] ?? '';
         $scriptName = $_SERVER['SCRIPT_NAME'] ?? '/public/index.php';
+        
+        if (strpos($httpHost, 'hostingersite.com') !== false) {
+            return '';
+        }
         
         if (preg_match('#^/([^/]+)/public#', $scriptName, $matches)) {
             return '/' . $matches[1];
@@ -56,7 +61,8 @@ if (!function_exists('getBasePath')) {
 if (!function_exists('getImagePath')) {
     function getImagePath($imagePath) {
         if (empty($imagePath)) {
-            return '/Cinema/assets/img/default.jpg';
+            $base = getBasePath();
+            return $base . '/assets/img/default.jpg';
         }
         
         if (strpos($imagePath, 'http') === 0) {

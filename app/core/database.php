@@ -8,24 +8,36 @@ class Database {
         require_once __DIR__ . '/../config/database.php';
         
         if (!defined('DB_HOST') || !defined('DB_USER') || !defined('DB_NAME')) {
-            throw new Exception('Database configuration constants are not defined. Please check secrets.php');
+            $errorMsg = 'Database configuration constants are not defined. Please check secrets.php.';
+            $errorMsg .= ' DB_HOST: ' . (defined('DB_HOST') ? DB_HOST : 'NOT DEFINED');
+            $errorMsg .= ' DB_USER: ' . (defined('DB_USER') ? DB_USER : 'NOT DEFINED');
+            $errorMsg .= ' DB_NAME: ' . (defined('DB_NAME') ? DB_NAME : 'NOT DEFINED');
+            throw new Exception($errorMsg);
         }
         
         $dbPass = defined('DB_PASS') ? DB_PASS : '';
+        $dbUser = DB_USER;
+        $dbHost = DB_HOST;
+        $dbName = DB_NAME;
         
         try {
-            $dsn = "mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=utf8mb4";
+            $dsn = "mysql:host=" . $dbHost . ";dbname=" . $dbName . ";charset=utf8mb4";
             $options = [
                 PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
                 PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
                 PDO::ATTR_EMULATE_PREPARES => false,
             ];
             
-            $this->connection = new PDO($dsn, DB_USER, $dbPass, $options);
+            $this->connection = new PDO($dsn, $dbUser, $dbPass, $options);
         } catch (PDOException $e) {
             error_log("Database connection failed: " . $e->getMessage());
             if (defined('APP_DEBUG') && APP_DEBUG) {
-                die("Database connection failed: " . $e->getMessage());
+                $debugInfo = "<br><br><strong>Debug Info:</strong><br>";
+                $debugInfo .= "DB_HOST: " . (defined('DB_HOST') ? htmlspecialchars(DB_HOST) : 'NOT DEFINED') . "<br>";
+                $debugInfo .= "DB_USER: " . (defined('DB_USER') ? htmlspecialchars(DB_USER) : 'NOT DEFINED') . "<br>";
+                $debugInfo .= "DB_NAME: " . (defined('DB_NAME') ? htmlspecialchars(DB_NAME) : 'NOT DEFINED') . "<br>";
+                $debugInfo .= "DB_PASS: " . (defined('DB_PASS') ? (strlen(DB_PASS) > 0 ? 'SET (' . strlen(DB_PASS) . ' chars)' : 'EMPTY') : 'NOT DEFINED') . "<br>";
+                die("Database connection failed: " . htmlspecialchars($e->getMessage()) . $debugInfo);
             } else {
                 die("Database connection failed. Please contact the administrator.");
             }

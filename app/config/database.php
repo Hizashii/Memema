@@ -23,14 +23,27 @@ if (!file_exists($secretsPath)) {
 require_once $secretsPath;
 
 if (!defined('DB_HOST') || !defined('DB_USER') || !defined('DB_NAME')) {
+    $secretsPath = __DIR__ . '/secrets.php';
+    $errorDetails = '<p><strong>secrets.php path:</strong> ' . htmlspecialchars($secretsPath) . '</p>';
+    $errorDetails .= '<p><strong>File exists:</strong> ' . (file_exists($secretsPath) ? 'YES' : 'NO') . '</p>';
+    
+    if (file_exists($secretsPath)) {
+        $errorDetails .= '<p><strong>File is readable:</strong> ' . (is_readable($secretsPath) ? 'YES' : 'NO') . '</p>';
+    }
+    
+    $errorDetails .= '<p><strong>DB_HOST defined:</strong> ' . (defined('DB_HOST') ? 'YES (' . htmlspecialchars(DB_HOST) . ')' : 'NO') . '</p>';
+    $errorDetails .= '<p><strong>DB_USER defined:</strong> ' . (defined('DB_USER') ? 'YES (' . htmlspecialchars(DB_USER) . ')' : 'NO') . '</p>';
+    $errorDetails .= '<p><strong>DB_NAME defined:</strong> ' . (defined('DB_NAME') ? 'YES (' . htmlspecialchars(DB_NAME) . ')' : 'NO') . '</p>';
+    $errorDetails .= '<p><strong>DB_PASS defined:</strong> ' . (defined('DB_PASS') ? 'YES' : 'NO') . '</p>';
+    
     if (php_sapi_name() !== 'cli') {
         http_response_code(500);
     }
     die('
         <h1>Configuration Error</h1>
         <p>Database credentials are not properly configured in <code>secrets.php</code>.</p>
-        <p>Please ensure DB_HOST, DB_USER, and DB_NAME are all defined.</p>
-        <p>DB_PASS can be an empty string if your database has no password.</p>
+        ' . $errorDetails . '
+        <p><strong>Action required:</strong> Create or update <code>app/config/secrets.php</code> on your production server with your database credentials.</p>
     ');
 }
 
