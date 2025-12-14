@@ -5,10 +5,6 @@
 -- Updated: Fixed foreign key constraints, added views and triggers
 -- =============================================
 
--- Create database if it doesn't exist and select it
-CREATE DATABASE IF NOT EXISTS cinema CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE cinema;
-
 -- Drop tables in reverse order of dependencies
 DROP TABLE IF EXISTS seat_reservations;
 DROP TABLE IF EXISTS bookings;

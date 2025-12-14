@@ -7,12 +7,12 @@ if (!defined('CINEMA_APP')) {
 
 // ===========================================
 // DATABASE CREDENTIALS
+// IMPORTANT: Get these from your Hostinger hPanel -> Databases
 // ===========================================
-define('DB_HOST', 'localhost');
-define('DB_USER', 'your_database_user');        // Change this
-define('DB_PASS', 'your_database_password');    // Change this
-define('DB_NAME', 'Cinema');                    // Change this if different
-
+define('DB_HOST', 'localhost');                
+define('DB_USER', 'u295920917_php_cinema');  
+define('DB_PASS', 'Kookaburra!23'); 
+define('DB_NAME', 'u295920917_cinema');         
 // ADMIN CREDENTIALS
 // Use strong, unique credentials in production!
 define('ADMIN_USERNAME', 'admin');
