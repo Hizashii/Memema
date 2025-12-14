@@ -1,7 +1,5 @@
 RewriteEngine On
 
-RewriteRule ^public/frontend/(.*)$ /public/index.php?route=/$1 [QSA,L,R=301]
-
 RewriteCond %{REQUEST_FILENAME} -f [OR]
 RewriteCond %{REQUEST_FILENAME} -d
 RewriteRule ^ - [L]
