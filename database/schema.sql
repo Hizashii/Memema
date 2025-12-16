@@ -129,15 +129,13 @@ CREATE TABLE IF NOT EXISTS bookings (
   INDEX idx_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- =============================================
--- SEAT RESERVATIONS TABLE
--- =============================================
+
 CREATE TABLE IF NOT EXISTS seat_reservations (
   id INT AUTO_INCREMENT PRIMARY KEY,
   booking_id INT NOT NULL,
   screen_id INT DEFAULT NULL,
   seat_row CHAR(1) NOT NULL,
-  seat_number INT NOT NULL,
+  seat_number VARCHAR(10) NOT NULL,
   is_wheelchair BOOLEAN DEFAULT FALSE,
   FOREIGN KEY (booking_id) REFERENCES bookings(id) ON DELETE CASCADE,
   FOREIGN KEY (screen_id) REFERENCES screens(id) ON DELETE SET NULL,

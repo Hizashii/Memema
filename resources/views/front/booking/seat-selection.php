@@ -226,12 +226,19 @@ function createSeatButton(seatLabel, row, number) {
   const isBooked = bookedSeats[seatLabel] === true;
   const isSelected = selectedSeats.some(s => s.seat === seatLabel);
   
+  // Debug logging for booked seats
+  if (isBooked) {
+    console.log('Seat ' + seatLabel + ' is marked as booked');
+  }
+  
   const button = document.createElement('button');
   button.type = 'button';
   
   let buttonClass = 'w-10 h-10 text-xs rounded border-2 transition-all ';
   if (isBooked) {
     buttonClass += 'bg-red-300 border-red-500 cursor-not-allowed opacity-50';
+    button.disabled = true;
+    button.title = 'This seat is already booked';
   } else if (isSelected) {
     buttonClass += 'bg-purple-500 border-purple-700 text-white cursor-pointer scale-110';
   } else {
@@ -262,6 +269,12 @@ function getRowLabel(index) {
 }
 
 function toggleSeat(seatLabel, row, number, button) {
+  // Safety check: prevent selecting booked seats
+  if (bookedSeats[seatLabel] === true) {
+    alert('This seat is already booked. Please select a different seat.');
+    return;
+  }
+  
   const index = selectedSeats.findIndex(s => s.seat === seatLabel);
   
   if (index > -1) {
@@ -271,6 +284,12 @@ function toggleSeat(seatLabel, row, number, button) {
   } else {
     if (selectedSeats.length >= maxSeats) {
       alert('Maximum ' + maxSeats + ' seats per booking');
+      return;
+    }
+    
+    // Double-check seat is not booked before adding
+    if (bookedSeats[seatLabel] === true) {
+      alert('This seat was just booked by another user. Please select a different seat.');
       return;
     }
     
@@ -320,32 +339,15 @@ function handleScreenChange() {
   checkSeatSelectionVisibility();
 }
 
-function checkSeatSelectionVisibility() {
-  const hasVenue = document.querySelector('input[name="venue_id"]:checked');
-  const hasScreen = document.querySelector('input[name="screen_id"]:checked');
-  const hasDate = document.getElementById('show_date').value;
-  const hasTime = document.querySelector('input[name="show_time"]:checked');
-  
-  if (hasVenue && hasScreen && hasDate && hasTime) {
-    document.getElementById('seat-selection-section').style.display = 'block';
+function loadBookedSeats(screenId, showDate, showTime) {
+  if (!screenId || !showDate || !showTime) {
+    bookedSeats = {};
     generateSeatMap();
-  } else {
-    document.getElementById('seat-selection-section').style.display = 'none';
-  }
-}
-
-function goToCheckout() {
-  if (selectedSeats.length === 0) {
-    alert('Please select at least one seat');
     return;
   }
   
-  const form = document.getElementById('booking-form');
-  const formData = new FormData(form);
-  
   const currentUrl = window.location.href;
   const urlObj = new URL(currentUrl);
-  
   const pathname = urlObj.pathname;
   let baseUrl = urlObj.origin;
   
@@ -361,26 +363,153 @@ function goToCheckout() {
     }
   }
   
-  let checkoutUrl = baseUrl + '?route=/booking/checkout';
-  checkoutUrl += '&movie_id=' + encodeURIComponent(formData.get('movie_id') || '');
-  checkoutUrl += '&venue_id=' + encodeURIComponent(formData.get('venue_id') || '');
-  checkoutUrl += '&screen_id=' + encodeURIComponent(formData.get('screen_id') || '');
-  checkoutUrl += '&show_date=' + encodeURIComponent(formData.get('show_date') || '');
-  checkoutUrl += '&show_time=' + encodeURIComponent(formData.get('show_time') || '');
+  const apiUrl = baseUrl + '?route=/booking/booked-seats&screen_id=' + encodeURIComponent(screenId) + 
+                '&show_date=' + encodeURIComponent(showDate) + 
+                '&show_time=' + encodeURIComponent(showTime);
   
-  const seats = selectedSeats.map(s => s.seat).join(',');
-  checkoutUrl += '&seats=' + encodeURIComponent(seats);
+  console.log('Loading booked seats from:', apiUrl);
   
-  window.location.href = checkoutUrl;
+  fetch(apiUrl)
+    .then(response => {
+      if (!response.ok) {
+        throw new Error('Network response was not ok');
+      }
+      return response.json();
+    })
+    .then(data => {
+      console.log('Booked seats API response:', data);
+      if (data.bookedSeats) {
+        bookedSeats = data.bookedSeats;
+        console.log('Updated bookedSeats object:', bookedSeats);
+        console.log('Number of booked seats:', Object.keys(bookedSeats).length);
+        console.log('Booked seat keys:', Object.keys(bookedSeats));
+        generateSeatMap();
+      } else {
+        console.log('No booked seats in response, clearing bookedSeats');
+        bookedSeats = {};
+        generateSeatMap();
+      }
+    })
+    .catch(error => {
+      console.error('Error loading booked seats:', error);
+      bookedSeats = {};
+      generateSeatMap();
+    });
 }
 
-document.addEventListener('DOMContentLoaded', function() {
+function checkSeatSelectionVisibility() {
   const hasVenue = document.querySelector('input[name="venue_id"]:checked');
   const hasScreen = document.querySelector('input[name="screen_id"]:checked');
   const hasDate = document.getElementById('show_date').value;
   const hasTime = document.querySelector('input[name="show_time"]:checked');
   
   if (hasVenue && hasScreen && hasDate && hasTime) {
+    document.getElementById('seat-selection-section').style.display = 'block';
+    // Load booked seats first, then generate the seat map
+    loadBookedSeats(hasScreen.value, hasDate, hasTime.value);
+  } else {
+    document.getElementById('seat-selection-section').style.display = 'none';
+  }
+}
+
+function goToCheckout() {
+  console.log('goToCheckout called. Selected seats:', selectedSeats);
+  
+  if (!selectedSeats || selectedSeats.length === 0) {
+    alert('Please select at least one seat');
+    return;
+  }
+  
+  // Final check: ensure none of the selected seats are booked
+  const bookedSelectedSeats = selectedSeats.filter(s => bookedSeats[s.seat] === true);
+  if (bookedSelectedSeats.length > 0) {
+    alert('One or more selected seats have been booked by another user. Please refresh and select different seats.');
+    // Reload booked seats and regenerate map
+    const screenId = document.querySelector('input[name="screen_id"]:checked')?.value;
+    const showDate = document.getElementById('show_date')?.value;
+    const showTime = document.querySelector('input[name="show_time"]:checked')?.value;
+    if (screenId && showDate && showTime) {
+      loadBookedSeats(screenId, showDate, showTime);
+    }
+    return;
+  }
+  
+  const form = document.getElementById('booking-form');
+  if (!form) {
+    alert('Form not found. Please refresh the page and try again.');
+    return;
+  }
+  
+  // Get form values properly (radio buttons need querySelector)
+  const movieId = form.querySelector('input[name="movie_id"]')?.value || '';
+  const venueId = form.querySelector('input[name="venue_id"]:checked')?.value || '';
+  const screenId = form.querySelector('input[name="screen_id"]:checked')?.value || '';
+  const showDate = form.querySelector('input[name="show_date"]')?.value || '';
+  const showTime = form.querySelector('input[name="show_time"]:checked')?.value || '';
+  
+  // Validate required fields
+  if (!movieId || !venueId || !screenId || !showDate || !showTime) {
+    alert('Please complete all booking details (venue, screen, date, and time)');
+    return;
+  }
+  
+  const currentUrl = window.location.href;
+  const urlObj = new URL(currentUrl);
+  const pathname = urlObj.pathname;
+  let baseUrl = urlObj.origin;
+  
+  if (pathname.includes('/public/index.php')) {
+    const indexPos = pathname.indexOf('/public/index.php');
+    baseUrl += pathname.substring(0, indexPos + '/public/index.php'.length);
+  } else {
+    const match = pathname.match(/^(\/[^\/]+)/);
+    if (match) {
+      baseUrl += match[1] + '/public/index.php';
+    } else {
+      baseUrl += '/Cinema/public/index.php';
+    }
+  }
+  
+  // Build seats string
+  const seats = selectedSeats.map(s => s.seat).join(',');
+  
+  if (!seats || seats.length === 0) {
+    alert('No seats selected. Please select at least one seat.');
+    return;
+  }
+  
+  // Build URL with all parameters using URLSearchParams for proper encoding
+  const params = new URLSearchParams();
+  params.set('route', '/booking/checkout');
+  params.set('movie_id', movieId);
+  params.set('venue_id', venueId);
+  params.set('screen_id', screenId);
+  params.set('show_date', showDate);
+  params.set('show_time', showTime);
+  params.set('seats', seats);
+  
+  const checkoutUrl = baseUrl + '?' + params.toString();
+  
+  console.log('Selected seats:', selectedSeats);
+  console.log('Seats string:', seats);
+  console.log('Redirecting to checkout URL:', checkoutUrl);
+  window.location.href = checkoutUrl;
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  console.log('Initial bookedSeats on page load:', bookedSeats);
+  console.log('Number of booked seats on load:', Object.keys(bookedSeats).length);
+  
+  const hasVenue = document.querySelector('input[name="venue_id"]:checked');
+  const hasScreen = document.querySelector('input[name="screen_id"]:checked');
+  const hasDate = document.getElementById('show_date').value;
+  const hasTime = document.querySelector('input[name="show_time"]:checked');
+  
+  if (hasVenue && hasScreen && hasDate && hasTime) {
+    // If we have all parameters, load fresh booked seats and show seat map
+    loadBookedSeats(hasScreen.value, hasDate, hasTime.value);
+  } else {
+    // Otherwise just check visibility (won't show seat map yet)
     checkSeatSelectionVisibility();
   }
   

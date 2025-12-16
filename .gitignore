@@ -1,4 +1,6 @@
 # Sensitive files
+# Note: secrets.example.php is tracked (contains only placeholders)
+#       secrets.php is ignored (contains actual credentials)
 app/config/secrets.php
 .env
 *.env

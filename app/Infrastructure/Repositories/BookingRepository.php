@@ -61,16 +61,25 @@ class BookingRepository {
     }
     
     public function getBookedSeats($screenId, $showDate, $showTime) {
+        // Normalize time format - handle both "10:00" and "10:00:00"
+        $normalizedTime = $showTime;
+        if (preg_match('/^(\d{1,2}):(\d{2})$/', $showTime, $matches)) {
+            $normalizedTime = $matches[1] . ':' . $matches[2] . ':00';
+        }
+        
+        // Query to find all booked seats for this specific show
+        // Use TIME() function to handle format variations
+        // CAST seat_number to CHAR to ensure it's returned as string (handles both INT and VARCHAR columns)
         $sql = "
-            SELECT sr.seat_row, sr.seat_number
+            SELECT sr.seat_row, CAST(sr.seat_number AS CHAR) as seat_number
             FROM seat_reservations sr
             INNER JOIN bookings b ON sr.booking_id = b.id
             WHERE sr.screen_id = ? 
             AND b.show_date = ? 
-            AND b.show_time = ?
-            AND b.status = 'confirmed'
+            AND (TIME(b.show_time) = TIME(?) OR TIME(b.show_time) = TIME(?))
+            AND b.status IN ('confirmed', 'paid')
         ";
-        return $this->db->query($sql, [$screenId, $showDate, $showTime]);
+        return $this->db->query($sql, [$screenId, $showDate, $showTime, $normalizedTime]);
     }
     
     public function create($data) {
@@ -79,32 +88,57 @@ class BookingRepository {
             (user_id, movie_id, venue_id, screen_id, show_date, show_time, seats_count, total_price, status)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ";
-        return $this->db->execute($sql, [
-            $data['user_id'],
-            $data['movie_id'],
-            $data['venue_id'],
-            $data['screen_id'],
-            $data['show_date'],
-            $data['show_time'],
-            $data['seats_count'],
-            $data['total_price'],
-            $data['status'] ?? 'confirmed'
-        ]);
+        try {
+            $result = $this->db->execute($sql, [
+                $data['user_id'],
+                $data['movie_id'],
+                $data['venue_id'],
+                $data['screen_id'],
+                $data['show_date'],
+                $data['show_time'],
+                $data['seats_count'],
+                $data['total_price'],
+                $data['status'] ?? 'confirmed'
+            ]);
+            
+            // If execute returns an insert ID (numeric), use it
+            // Otherwise get it from lastInsertId()
+            if (is_numeric($result) && $result > 0) {
+                return (int)$result;
+            }
+            
+            $insertId = $this->db->lastInsertId();
+            if ($insertId && $insertId > 0) {
+                return (int)$insertId;
+            }
+            
+            error_log("BookingRepository::create - No insert ID returned. Result: " . var_export($result, true));
+            return false;
+        } catch (Exception $e) {
+            error_log("BookingRepository::create error: " . $e->getMessage());
+            throw $e;
+        }
     }
-    
     public function createSeatReservation($bookingId, $screenId, $seatRow, $seatNumber, $isWheelchair = false) {
+        // Ensure seatNumber is stored as string
+        $seatNumberStr = (string)$seatNumber;
+        error_log("createSeatReservation: bookingId=$bookingId, screenId=$screenId, row='$seatRow', number='$seatNumberStr'");
+        
         $sql = "
             INSERT INTO seat_reservations 
             (booking_id, screen_id, seat_row, seat_number, is_wheelchair)
             VALUES (?, ?, ?, ?, ?)
         ";
-        return $this->db->execute($sql, [
+        $result = $this->db->execute($sql, [
             $bookingId,
             $screenId,
             $seatRow,
-            $seatNumber,
+            $seatNumberStr,
             $isWheelchair ? 1 : 0
         ]);
+        
+        error_log("createSeatReservation: Result = " . var_export($result, true));
+        return $result;
     }
     
     public function updateStatus($bookingId, $status) {

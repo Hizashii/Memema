@@ -12,6 +12,7 @@ $router->post('/contact', 'App\Http\Controllers\Front\ContactController@submit')
 $router->get('/booking', 'App\Http\Controllers\Front\BookingController@index');
 $router->get('/booking/checkout', 'App\Http\Controllers\Front\BookingController@checkout');
 $router->post('/booking/process', 'App\Http\Controllers\Front\BookingController@process');
+$router->get('/booking/booked-seats', 'App\Http\Controllers\Front\BookingController@getBookedSeats');
 
 $router->get('/login', 'App\Http\Controllers\Front\AuthController@loginForm');
 $router->post('/login', 'App\Http\Controllers\Front\AuthController@login');

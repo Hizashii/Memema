@@ -7,21 +7,21 @@ if (!defined('CINEMA_APP')) {
 
 // DATABASE CREDENTIALS
 define('DB_HOST', 'localhost');                
-define('DB_USER', 'u295920917_u295920917');  
-define('DB_PASS', 'Kookaburra!23'); 
-define('DB_NAME', 'u295920917_u295920917');         
+define('DB_USER', 'your_database_username');  
+define('DB_PASS', 'your_database_password'); 
+define('DB_NAME', 'your_database_name');         
+
 // ADMIN CREDENTIALS
 define('ADMIN_USERNAME', 'admin');
-define('ADMIN_PASSWORD', 'passoword'); 
+define('ADMIN_PASSWORD', 'change_this_password'); 
 define('ADMIN_EMAIL', 'admin@yourdomain.com');
 
 // APPLICATION SETTINGS
 define('APP_ENV', 'development'); 
-define('APP_DEBUG', true);       
+define('APP_DEBUG', true);     
 define('APP_URL', 'http://localhost/Cinema');
 
-
-define('APP_SECRET_KEY', 'dev_only_change_in_production_abc123');
+define('APP_SECRET_KEY', 'CHANGE_THIS_TO_A_RANDOM_SECRET_KEY_IN_PRODUCTION');
 
 // SESSION SETTINGS
 define('SESSION_LIFETIME', 7200);

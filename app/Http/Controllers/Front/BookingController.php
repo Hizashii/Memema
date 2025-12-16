@@ -67,9 +67,16 @@ class BookingController extends Controller {
             try {
                 $bookedSeatsData = $this->bookingService->getBookedSeats($screenId, $showDate, $showTime);
                 foreach ($bookedSeatsData as $seat) {
-                    $bookedSeats[$seat['seat_row'] . $seat['seat_number']] = true;
+                    // Ensure seat key matches the format used in JavaScript (row + number as string)
+                    // Handle both old format (numeric) and new format (string like "M1")
+                    $seatNumber = (string)$seat['seat_number'];
+                    $seatKey = $seat['seat_row'] . $seatNumber;
+                    $bookedSeats[$seatKey] = true;
                 }
+                error_log("Loaded " . count($bookedSeats) . " booked seats for screen $screenId, date $showDate, time $showTime");
+                error_log("Booked seat keys: " . implode(', ', array_keys($bookedSeats)));
             } catch (Exception $e) {
+                error_log("Error loading booked seats in controller: " . $e->getMessage());
             }
         }
         
@@ -111,16 +118,44 @@ class BookingController extends Controller {
         $screenId = (int)($this->post('screen_id') ?? $this->get('screen_id') ?? 0);
         $showDate = $this->post('show_date') ?? $this->get('show_date') ?? '';
         $showTime = $this->post('show_time') ?? $this->get('show_time') ?? '';
-        $seatsParam = $this->post('seats') ?? $this->get('seats') ?? [];
         
-        if (is_string($seatsParam)) {
-            $seats = !empty($seatsParam) ? explode(',', $seatsParam) : [];
-        } else {
-            $seats = is_array($seatsParam) ? $seatsParam : [];
+        // Get seats - check multiple sources
+        $seatsParam = null;
+        if (isset($_POST['seats']) && $_POST['seats'] !== '') {
+            $seatsParam = $_POST['seats'];
+        } elseif (isset($_GET['seats']) && $_GET['seats'] !== '') {
+            $seatsParam = $_GET['seats'];
+        } elseif ($this->get('seats') !== null && $this->get('seats') !== '') {
+            $seatsParam = $this->get('seats');
         }
+        
+        // Parse seats
+        $seats = [];
+        if ($seatsParam !== null && $seatsParam !== '') {
+            if (is_string($seatsParam)) {
+                $seats = array_values(array_filter(array_map('trim', explode(',', $seatsParam))));
+            } elseif (is_array($seatsParam)) {
+                $seats = array_values(array_filter(array_map('trim', $seatsParam)));
+            }
+        }
+        
+        // Debug logging
+        error_log("Checkout - movieId: $movieId, venueId: $venueId, screenId: $screenId");
+        error_log("Checkout - showDate: $showDate, showTime: $showTime");
+        error_log("Checkout - seatsParam: " . var_export($seatsParam, true));
+        error_log("Checkout - seats array: " . var_export($seats, true));
+        error_log("Checkout - \$_GET: " . print_r($_GET, true));
         
         if ($movieId <= 0 || $venueId <= 0 || $screenId <= 0 || empty($showDate) || empty($showTime) || empty($seats)) {
             $base = $this->getBasePath();
+            $errorDetails = [];
+            if ($movieId <= 0) $errorDetails[] = 'movie_id missing';
+            if ($venueId <= 0) $errorDetails[] = 'venue_id missing';
+            if ($screenId <= 0) $errorDetails[] = 'screen_id missing';
+            if (empty($showDate)) $errorDetails[] = 'show_date missing';
+            if (empty($showTime)) $errorDetails[] = 'show_time missing';
+            if (empty($seats)) $errorDetails[] = 'seats missing';
+            error_log("Checkout validation failed: " . implode(', ', $errorDetails));
             header('Location: ' . $base . '/public/index.php?route=/booking&error=' . urlencode('Missing booking information. Please start over.'));
             exit;
         }
@@ -186,7 +221,14 @@ class BookingController extends Controller {
         $screenId = (int)$this->post('screen_id', 0);
         $showDate = $this->post('show_date', '');
         $showTime = $this->post('show_time', '');
-        $seats = $this->post('seats', []);
+        $seatsParam = $this->post('seats', []);
+        
+        // Accept seats as both string and array (from checkout form)
+        if (is_string($seatsParam)) {
+            $seats = array_values(array_filter(array_map('trim', explode(',', $seatsParam))));
+        } else {
+            $seats = is_array($seatsParam) ? array_values(array_filter(array_map('trim', $seatsParam))) : [];
+        }
         
         $errors = [];
         
@@ -210,7 +252,7 @@ class BookingController extends Controller {
             $errors[] = 'Please select a time';
         }
         
-        if (empty($seats) || !is_array($seats)) {
+        if (empty($seats)) {
             $errors[] = 'Please select at least one seat';
         }
         
@@ -260,20 +302,34 @@ class BookingController extends Controller {
                 $seat = trim($seat);
                 if (empty($seat)) continue;
                 
-                if (preg_match('/^([A-Z]+)([LMR]?\d+)$/i', $seat, $matches)) {
-                    $parsedSeats[] = [
-                        'row' => strtoupper($matches[1]),
-                        'number' => $matches[2],
-                        'wheelchair' => false
-                    ];
-                } elseif (preg_match('/^([A-Z]+)(\d+)$/i', $seat, $matches)) {
-                    $parsedSeats[] = [
-                        'row' => strtoupper($matches[1]),
-                        'number' => (int)$matches[2],
-                        'wheelchair' => false
-                    ];
+                // Match formats like "AL1", "AM1", "AR1" (with L/M/R prefix) or "A1" (numeric only)
+                // Pattern: row letters (1-2 chars) + optional L/M/R + number
+                // Examples: "AM1" -> row="A", number="M1"; "A1" -> row="A", number="1"; "AAM1" -> row="AA", number="M1"
+                // Note: We prioritize matching L/M/R sections, so "AM1" is parsed as row="A", number="M1" not row="AM", number="1"
+                if (preg_match('/^([A-Z]{1,2})([LMR]\d+)$/i', $seat, $matches)) {
+                    // Format with section prefix (L/M/R): "AM1", "AL1", "AR1", "AAM1", etc.
+                    $row = strtoupper($matches[1]);
+                    $number = (string)$matches[2];
+                } elseif (preg_match('/^([A-Z]{1,2})(\d+)$/i', $seat, $matches)) {
+                    // Format without section prefix: "A1", "AA1", etc.
+                    $row = strtoupper($matches[1]);
+                    $number = (string)$matches[2];
                 } else {
+                    error_log("BookingController: Invalid seat format: '$seat'");
                     throw new Exception('Invalid seat format: ' . $seat);
+                }
+                
+                if (isset($row) && isset($number)) {
+                    $row = strtoupper($matches[1]);
+                    $number = (string)$matches[2]; // Store as string to support "L1", "M1", "R1" formats
+                    
+                    error_log("BookingController: Parsed seat '$seat' -> row='$row', number='$number', full key='$row$number'");
+                    
+                    $parsedSeats[] = [
+                        'row' => $row,
+                        'number' => $number,
+                        'wheelchair' => false
+                    ];
                 }
             }
             
@@ -297,18 +353,27 @@ class BookingController extends Controller {
             $seatCount = count($parsedSeats);
             $totalPrice = $screenData['base_price'] * $seatCount;
             
+            // Ensure show_time is in HH:MM:SS format for database
+            $showTimeFormatted = $showTime;
+            if (preg_match('/^(\d{1,2}):(\d{2})$/', $showTime, $matches)) {
+                // Convert "10:00" to "10:00:00"
+                $showTimeFormatted = $matches[1] . ':' . $matches[2] . ':00';
+            }
+            
+            error_log("Creating booking - userId: $userId, movieId: $movieId, seats: " . count($parsedSeats));
+            
             $bookingId = $this->bookingService->createBooking([
                 'user_id' => $userId,
                 'movie_id' => $movieId,
                 'venue_id' => $venueId,
                 'screen_id' => $screenId,
                 'show_date' => $showDate,
-                'show_time' => $showTime,
+                'show_time' => $showTimeFormatted,
                 'seats_count' => $seatCount,
                 'total_price' => $totalPrice
             ], $parsedSeats);
             
-            if ($bookingId) {
+            if ($bookingId && $bookingId > 0) {
                 $booking = $this->bookingRepository->findById($bookingId);
                 if ($booking) {
                     $this->view('front/booking/confirmation', [
@@ -317,7 +382,11 @@ class BookingController extends Controller {
                         'success' => 'Booking confirmed! You will receive a confirmation email shortly.'
                     ]);
                     return;
+                } else {
+                    error_log("Booking created with ID $bookingId but could not be retrieved from database");
                 }
+            } else {
+                error_log("Booking creation returned invalid ID: " . var_export($bookingId, true));
             }
             
             $base = $this->getBasePath();
@@ -325,11 +394,53 @@ class BookingController extends Controller {
             exit;
             
         } catch (Exception $e) {
-            error_log("Booking error: " . $e->getMessage() . " | Trace: " . $e->getTraceAsString());
+            error_log("Booking error: " . $e->getMessage());
+            error_log("Booking error trace: " . $e->getTraceAsString());
+            error_log("Booking error file: " . $e->getFile() . " line " . $e->getLine());
             $base = $this->getBasePath();
-            header('Location: ' . $base . '/public/index.php?route=/booking/checkout&movie_id=' . $movieId . '&error=' . urlencode($e->getMessage()));
+            $errorMsg = APP_DEBUG ? $e->getMessage() : 'An error occurred while processing your booking. Please try again.';
+            header('Location: ' . $base . '/public/index.php?route=/booking/checkout&movie_id=' . $movieId . '&venue_id=' . $venueId . '&screen_id=' . $screenId . '&show_date=' . urlencode($showDate) . '&show_time=' . urlencode($showTime) . '&error=' . urlencode($errorMsg));
+            exit;
+        } catch (Error $e) {
+            error_log("Booking fatal error: " . $e->getMessage());
+            error_log("Booking fatal error trace: " . $e->getTraceAsString());
+            $base = $this->getBasePath();
+            $errorMsg = APP_DEBUG ? $e->getMessage() : 'A system error occurred. Please contact support.';
+            header('Location: ' . $base . '/public/index.php?route=/booking&error=' . urlencode($errorMsg));
             exit;
         }
+    }
+    
+    public function getBookedSeats() {
+        header('Content-Type: application/json');
+        
+        $screenId = (int)($this->get('screen_id') ?? 0);
+        $showDate = $this->get('show_date') ?? '';
+        $showTime = $this->get('show_time') ?? '';
+        
+        if ($screenId <= 0 || empty($showDate) || empty($showTime)) {
+            echo json_encode(['bookedSeats' => []]);
+            exit;
+        }
+        
+        try {
+            $bookedSeatsData = $this->bookingService->getBookedSeats($screenId, $showDate, $showTime);
+            $bookedSeats = [];
+            foreach ($bookedSeatsData as $seat) {
+                // Ensure seat key matches the format used in JavaScript (row + number as string)
+                // Handle both old format (numeric) and new format (string like "M1")
+                $seatNumber = (string)$seat['seat_number'];
+                $seatKey = $seat['seat_row'] . $seatNumber;
+                $bookedSeats[$seatKey] = true;
+            }
+            error_log("AJAX: Loaded " . count($bookedSeats) . " booked seats for screen $screenId, date $showDate, time $showTime");
+            error_log("AJAX: Booked seat keys: " . implode(', ', array_keys($bookedSeats)));
+            echo json_encode(['bookedSeats' => $bookedSeats]);
+        } catch (Exception $e) {
+            error_log("Error loading booked seats: " . $e->getMessage());
+            echo json_encode(['bookedSeats' => [], 'error' => $e->getMessage()]);
+        }
+        exit;
     }
 }
 
